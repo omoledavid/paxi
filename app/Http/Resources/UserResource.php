@@ -31,6 +31,10 @@ class UserResource extends JsonResource
                 'referral_link' => env('FRONTEND_URL').'/mobile/register/?referral='.$this->sPhone,
                 'banks' => [
                     [
+                        'name' => 'Wema Bank',
+                        'account_no' => $this->sBankNo
+                    ],
+                    [
                         'name' => 'Rolex Bank',
                         'account_no' => $this->sRolexBank
                     ],
