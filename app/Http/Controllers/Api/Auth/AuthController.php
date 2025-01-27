@@ -71,7 +71,7 @@ class AuthController extends Controller
 
         if($monifyStatus == 'On')
         {
-            $this->createVirtualBankAccount($monnifyApi, $monnifySecret, $monnifyContract);
+            $this->createVirtualBankAccount($user,$monnifyApi, $monnifySecret, $monnifyContract);
         }
 
 //        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
@@ -130,9 +130,8 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
         return $this->ok('Logged out');
     }
-    public function createVirtualBankAccount($monnifyApi, $monnifySecret, $monnifyContract)
+    public function createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract)
     {
-        $user = auth()->user();
         $fullname = $user->sFname . " " . $user->sLname;
         $accessKey = "$monnifyApi:$monnifySecret";
         $apiKey = base64_encode($accessKey);
