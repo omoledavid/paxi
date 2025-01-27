@@ -82,3 +82,8 @@ function generateTransactionRef(){
     $tranId=rand(1000,9999).time();
     return $tranId;
 }
+
+function passwordHash(string $password): string
+{
+    return substr(sha1(md5($password)), 3, 10);
+}

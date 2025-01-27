@@ -38,7 +38,7 @@ class AuthController extends Controller
         $user->sLname = $validatedData['lname'];
         $user->sEmail = $validatedData['email'];
         $user->sPhone = $validatedData['phone'];
-        $user->sPass = bcrypt($validatedData['password']);
+        $user->sPass = passwordHash($validatedData['password']);
         $user->sState = $validatedData['state'];
         $user->sType = $userType;
         $user->sApiKey = $apiKey;
@@ -70,6 +70,7 @@ class AuthController extends Controller
             'password.required' => 'Password is required.',
             'password.min' => 'Password must be at least 6 characters.',
         ]);
+        $password = $request->password;
 
         // Retrieve the user by phone number
         $user = User::firstWhere('sPhone', $request->sPhone);
@@ -80,7 +81,8 @@ class AuthController extends Controller
         }
 
         // Verify the password
-        if (!Hash::check($request->password, $user->sPass)) {
+        $hashPassword = passwordHash($password);
+        if ($hashPassword !== $user->sPass) {
             return $this->error(['Wrong password.'], 401);
         }
 
