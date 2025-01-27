@@ -51,7 +51,7 @@ class AuthorizationController extends Controller
 
         if ($user->sVerCode == $request->code) {
             $user->sVerCode = 0;
-            $user->sRegStatus = null;
+            $user->sRegStatus = 0;
             $user->save();
 
             return $this->error('Email verified successfully');

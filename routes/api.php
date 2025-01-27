@@ -23,7 +23,7 @@ Route::controller(ForgotPasswordController::class)->group(function () {
     Route::post('password/verify-code', 'verifyCode');
     Route::post('password/reset', 'reset');
 });
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('logout', AuthController::class . '@logout');
     //authorization
     Route::controller(AuthorizationController::class)->group(function () {
