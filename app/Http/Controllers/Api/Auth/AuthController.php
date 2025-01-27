@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\ApiConfig;
 use App\Models\User;
+use App\Models\UserLogin;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,8 +21,8 @@ class AuthController extends Controller
         $validatedData = request()->validate([
             'fname' => 'required',
             'lname' => 'required',
-            'email' => 'required|email|unique:subscribers',
-            'phone' => 'required|unique:subscribers|',
+            'sEmail' => 'required|email|unique:subscribers',
+            'sPhone' => 'required|unique:subscribers|',
             'password' => 'required|string|min:6|confirmed',
             'state' => 'required',
             'pin' => 'required',
@@ -38,8 +39,8 @@ class AuthController extends Controller
         $user = new User();
         $user->sFname = $validatedData['fname'];
         $user->sLname = $validatedData['lname'];
-        $user->sEmail = $validatedData['email'];
-        $user->sPhone = $validatedData['phone'];
+        $user->sEmail = $validatedData['sEmail'];
+        $user->sPhone = $validatedData['sPhone'];
         $user->sPass = passwordHash($validatedData['password']);
         $user->sState = $validatedData['state'];
         $user->sType = $userType;
@@ -52,6 +53,14 @@ class AuthController extends Controller
 
         sendVerificationCode($verCode, $user->sEmail);
         $token = $user->createToken('auth_token',['*'])->plainTextToken;
+        //Generate User Login Token
+        $randomToken = substr(str_shuffle("ABCDEFGHIJklmnopqrstvwxyz"), 0, 10);
+        $userLoginToken = time() . $randomToken . mt_rand(100, 1000);
+
+        $userLogin = new UserLogin();
+        $userLogin->user = $user->sId;
+        $userLogin->token = $userLoginToken;
+        $userLogin->save();
 
         //create virtual account
         $apiConfig = ApiConfig::all();
