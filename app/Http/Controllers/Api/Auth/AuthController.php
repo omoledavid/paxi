@@ -41,7 +41,7 @@ class AuthController extends Controller
         $user->sLname = $validatedData['lname'];
         $user->sEmail = $validatedData['email'];
         $user->sPhone = $validatedData['phone'];
-        $user->sPass = $validatedData['password'];
+        $user->sPass = bcrypt($validatedData['password']);
         $user->sState = $validatedData['state'];
         $user->sType = $userType;
         $user->sApiKey = $apiKey;

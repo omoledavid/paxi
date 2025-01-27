@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Api\v1;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\v1\UserResource;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
