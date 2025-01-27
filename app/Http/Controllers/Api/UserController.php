@@ -48,15 +48,7 @@ class UserController extends Controller
 
         // Validate request data
         $validatedData = $request->validate([
-            'user_title' => 'required|min:4',
-            'skills' => 'required|array|min:1',
-            'languages' => 'required|array|min:1',
-            'resume' => 'nullable|file|mimes:pdf,doc,docx|max:2048',
-            'cover_letter' => 'required|string|max:255',
-            'location' => 'required|string|max:50',
-            'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'bio' => 'required|string|max:255',
-            'extra_info' => 'nullable|string|max:255',
+            'fname' => 'required|string',
         ]);
 
         // Handle file uploads
@@ -86,6 +78,37 @@ class UserController extends Controller
 
         // Return updated user data
         return $this->ok('User profile updated successfully', new UserResource($user));
+    }
+    public function changePassword(Request $request)
+    {
+        $user = auth()->user();
+        $validatedData = $request->validate([
+            'old_password' => 'required',
+            'new_password' => 'required|confirmed',
+        ]);
+        $oldPassword = passwordHash($validatedData['old_password']);        
+        if ($oldPassword == $user->sPass) {
+            $user->sPass = passwordHash($validatedData['new_password']);
+            $user->save();
+            return $this->ok('Password changed successfully');
+        } else {
+            return $this->error('Incorrect password');
+        }
+    }
+    public function changePin(Request $request)
+    {
+        $user = auth()->user();
+        $validatedData = $request->validate([
+            'old_pin' => 'required',
+            'new_pin' => 'required|confirmed|digits:4|int',
+        ]);        
+        if ($validatedData['old_pin'] == $user->sPin) {
+            $user->sPin = $validatedData['new_pin'];
+            $user->save();
+            return $this->ok('Pin changed successfully');
+        } else {
+            return $this->error('Incorrect Pin');
+        }
     }
 
 

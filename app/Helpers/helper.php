@@ -87,3 +87,9 @@ function passwordHash(string $password): string
 {
     return substr(sha1(md5($password)), 3, 10);
 }
+
+function getConfigValue($list,$name){
+    foreach($list AS $item){
+        if($item->name == $name){return $item->value;}
+    }
+}

@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api\Auth;
 
 
 use App\Http\Controllers\Controller;
+use App\Models\ApiConfig;
 use App\Models\User;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
@@ -51,6 +53,17 @@ class AuthController extends Controller
         sendVerificationCode($verCode, $user->sEmail);
         $token = $user->createToken('auth_token',['*'])->plainTextToken;
 
+        //create virtual account
+        $apiConfig = ApiConfig::all();
+        $monnifySecret = getConfigValue($apiConfig, 'monifySecrete');
+        $monnifyApi = getConfigValue($apiConfig, 'monifyApi');
+        $monifyStatus = getConfigValue($apiConfig, 'monifyStatus');
+        $monnifyContract = getConfigValue($apiConfig, 'monifyContract');
+
+        if($monifyStatus == 'On')
+        {
+            $this->createVirtualBankAccount($monnifyApi, $monnifySecret, $monnifyContract);
+        }
 
 //        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
         return $this->ok('User registered successfully. Please verify your email address.', [
@@ -108,4 +121,64 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
         return $this->ok('Logged out');
     }
+    public function createVirtualBankAccount($monnifyApi, $monnifySecret, $monnifyContract)
+    {
+        $user = auth()->user();
+        $fullname = $user->sFname . " " . $user->sLname;
+        $accessKey = "$monnifyApi:$monnifySecret";
+        $apiKey = base64_encode($accessKey);
+
+        // Step 1: Get Authorization Data
+        $authUrl = 'https://api.monnify.com/api/v1/auth/login';
+        $accountCreationUrl = 'https://api.monnify.com/api/v2/bank-transfer/reserved-accounts';
+
+        $authResponse = Http::withHeaders([
+            'Authorization' => "Basic {$apiKey}",
+        ])->post($authUrl);
+
+        if ($authResponse->failed()) {
+            throw new \Exception('Failed to authenticate with Monnify.');
+        }
+
+        $accessToken = $authResponse->json('responseBody.accessToken');
+        $ref = uniqid() . rand(1000, 9000);
+
+        // Step 2: Request Account Creation
+        $accountCreationResponse = Http::withHeaders([
+            'Authorization' => "Bearer {$accessToken}",
+            'Content-Type' => 'application/json',
+        ])->post($accountCreationUrl, [
+            "accountReference" => $ref,
+            "accountName" => $fullname,
+            "currencyCode" => "NGN",
+            "contractCode" => $monnifyContract,
+            "customerEmail" => $user->sEmail,
+            "bvn" => "22433145825",
+            "customerName" => $fullname,
+            "getAllAvailableBanks" => false,
+            "preferredBanks" => ["035"],
+        ]);
+
+        if ($accountCreationResponse->failed()) {
+            throw new \Exception('Failed to create virtual bank account.');
+        }
+
+        $accountData = $accountCreationResponse->json();
+
+        // Step 3: Check and Save Account Details
+        if ($accountData['requestSuccessful'] === true) {
+            $accountName = $accountData['responseBody']['accountName'];
+            $accounts = $accountData['responseBody']['accounts'];
+
+            if (!empty($accounts) && $accounts[0]['bankCode'] === '035') {
+                $wemaAccountNumber = $accounts[0]['accountNumber'];
+                $wemaBankName = $accounts[0]['bankName'];
+
+                $user->sBankName = $wemaBankName;
+                $user->sBankNo = $wemaAccountNumber;
+                $user->save();
+            }
+        }
+    }
+
 }

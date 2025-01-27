@@ -32,35 +32,44 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('verify-email', 'emailVerification');
         Route::post('verify-mobile', 'mobileVerification');
     });
+    //User
     Route::apiResource('user', UserController::class);
-    //
+    //Change password
+    Route::post('changepass', UserController::class. '@changePassword');
+    Route::post('changepin', UserController::class. '@changePin');
+    //Data
     Route::controller(DataController::class)->group(function () {
         Route::prefix('data')->group(function () {
             Route::get('/', 'data');
+            Route::post('/', 'purchaseData');
         });
     });
     //Electricity
     Route::controller(ElectricityController::class)->group(function () {
         Route::prefix('electricity')->group(function () {
             Route::get('/', 'index');
+            Route::post('/', 'purchaseElectricity');
         });
     });
     //Airtime
     Route::controller(AirtimeController::class)->group(function () {
         Route::prefix('airtime')->group(function () {
             Route::get('/', 'index');
+            Route::post('/', 'purchaseAirtime');
         });
     });
     //Tv cable
     Route::controller(CableTvController::class)->group(function () {
         Route::prefix('cable')->group(function () {
             Route::get('/', 'index');
+            Route::post('/', 'purchaseCableTv');
         });
     });
     //Exam Card
     Route::controller(ExamCardController::class)->group(function () {
         Route::prefix('exam-card')->group(function () {
             Route::get('/', 'index');
+            Route::post('/', 'purchaseExamCardPin');
         });
     });
     Route::controller(GeneralController::class)->group(function () {

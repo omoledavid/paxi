@@ -76,7 +76,7 @@ class ForgotPasswordController extends Controller
         }
 
         $user = User::where('sEmail', $reset->email)->first();
-        $user->sPass = bcrypt($request->password);
+        $user->sPass = passwordHash($request->password);
         $user->save();
 
 

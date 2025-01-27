@@ -38,6 +38,9 @@ class GeneralController extends Controller
         if($request->pin != $user->sPin){
             return $this->error('Incorrect pin');
         }
+        if($user->sType == AccountType::AGENT){
+            return $this->error('You are already an agent');
+        }
         $generalSetting = GeneralSetting::first();
         $agentUpgragePrice = $generalSetting->agentupgrade;
         $newBal = $user->sWallet - $agentUpgragePrice;
@@ -75,6 +78,9 @@ class GeneralController extends Controller
 
         if($request->pin != $user->sPin){
             return $this->error('Incorrect pin');
+        }
+        if($user->sType == AccountType::VENDOR){
+            return $this->error('You are already a vendor');
         }
         $generalSetting = GeneralSetting::first();
         $vendorUpgragePrice = $generalSetting->vendorupgrade;
