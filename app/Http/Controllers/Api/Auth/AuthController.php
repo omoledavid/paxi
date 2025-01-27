@@ -57,10 +57,10 @@ class AuthController extends Controller
         $randomToken = substr(str_shuffle("ABCDEFGHIJklmnopqrstvwxyz"), 0, 10);
         $userLoginToken = time() . $randomToken . mt_rand(100, 1000);
 
-        $userLogin = new UserLogin();
-        $userLogin->user = $user->sId;
-        $userLogin->token = $userLoginToken;
-        $userLogin->save();
+//        $userLogin = new UserLogin();
+//        $userLogin->user = $user->sId;
+//        $userLogin->token = $userLoginToken;
+//        $userLogin->save();
 
         //create virtual account
         $apiConfig = ApiConfig::all();
