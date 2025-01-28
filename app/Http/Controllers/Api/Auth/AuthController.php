@@ -24,8 +24,8 @@ class AuthController extends Controller
             'sEmail' => 'required|email|unique:subscribers',
             'sPhone' => 'required|unique:subscribers|',
             'password' => 'required|string|min:6|confirmed',
-            'state' => 'required',
-            'pin' => 'required',
+            'state' => 'nullable',
+            'pin' => 'nullable',
             'referral' => 'nullable'
         ]);
         if (preg_match("/[^a-zA-Z0-9_ ]/", $request->fname)) {
