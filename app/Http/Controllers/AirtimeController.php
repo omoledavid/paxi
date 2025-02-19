@@ -34,7 +34,7 @@ class AirtimeController extends Controller
         if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
         }
-        $host = env('FRONTEND_URL') . '/api838190/data/';
+        $host = env('FRONTEND_URL') . '/api838190/airtime/';
         //ref code
         $transRef = generateTransactionRef();
         // Prepare request payload
