@@ -23,13 +23,13 @@ Route::controller(ForgotPasswordController::class)->group(function () {
     Route::post('password/verify-code', 'verifyCode');
     Route::post('password/reset', 'reset');
 });
+Route::post('verify-email', [AuthorizationController::class, 'emailVerification']);
 Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('logout', AuthController::class . '@logout');
     //authorization
     Route::controller(AuthorizationController::class)->group(function () {
         Route::get('authorization', 'authorization');
         Route::get('resend-verify/{type}', 'sendVerifyCode');
-        Route::post('verify-email', 'emailVerification');
         Route::post('verify-mobile', 'mobileVerification');
     });
     //User
