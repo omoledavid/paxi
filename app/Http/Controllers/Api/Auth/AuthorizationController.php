@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 use App\Traits\ApiResponses;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -45,9 +46,10 @@ class AuthorizationController extends Controller
     {
         $request->validate([
             'code' => 'required|exists:subscribers,sVerCode',
+            'email' => 'required|exists:subscribers,sEmail'
         ]);
 
-        $user = auth()->user();
+        $user = User::query()->where('sEmail', $request->email)->first();
 
         if ($user->sVerCode == $request->code) {
             $user->sVerCode = 0;
