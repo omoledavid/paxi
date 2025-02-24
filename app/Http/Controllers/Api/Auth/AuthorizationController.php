@@ -28,9 +28,12 @@ class AuthorizationController extends Controller
 
     }
 
-    public function sendVerifyCode($type)
+    public function sendVerifyCode(Request $request, $type)
     {
-        $user = auth()->user();
+        $validatedData = $request->validate([
+            'email' => 'required|string|email|max:255|exists:subscribers,sEmail',
+        ]);
+        $user = User::query()->where('sEmail', $validatedData['email'])->first();
 
 
         $user->sVerCode = verificationCode(4);
