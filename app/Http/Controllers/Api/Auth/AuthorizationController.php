@@ -56,7 +56,7 @@ class AuthorizationController extends Controller
             $user->sRegStatus = 0;
             $user->save();
 
-            return $this->error('Email verified successfully');
+            return $this->ok('Email verified successfully');
         }
     }
 

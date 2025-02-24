@@ -24,6 +24,7 @@ Route::controller(ForgotPasswordController::class)->group(function () {
     Route::post('password/reset', 'reset');
 });
 Route::post('verify-email', [AuthorizationController::class, 'emailVerification']);
+
 Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('logout', AuthController::class . '@logout');
     //authorization
