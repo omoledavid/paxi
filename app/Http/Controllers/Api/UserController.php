@@ -48,37 +48,26 @@ class UserController extends Controller
 
         // Validate request data
         $validatedData = $request->validate([
-            'fname' => 'required|string',
+            'fname' => 'nullable|string',
+            'lname' => 'nullable|string',
+            'phone' => 'nullable|string',
+            'state' => 'nullable|string',
         ]);
 
-        // Handle file uploads
-        if ($request->hasFile('profile_image')) {
-            $path = $request->file('profile_image')->store('profile-images', 'public');
-            $validatedData['profile_image'] = url('storage/' . $path);
-        }
+        // Filter out null values before updating
+        $updateData = array_filter([
+            'sFname' => $validatedData['fname'] ?? $user->sFname,
+            'sLname' => $validatedData['lname'] ?? $user->sLname,
+            'sPhone' => $validatedData['phone'] ?? $user->sPhone,
+            'sState' => $validatedData['state'] ?? $user->sState,
+        ], fn($value) => !is_null($value)); // This prevents null values from overriding existing data
 
-        if ($request->hasFile('resume')) {
-            $path = $request->file('resume')->store('resumes', 'public');
-            $validatedData['resume'] = url('storage/' . $path);
-        }
-
-        // Add user ID to data
-        $validatedData['user_id'] = $user->id;
-
-        // Update or create profile
-        if ($user->profile == null) {
-            $user->profile()->create($validatedData);
-        } else {
-            $user->profile()->update($validatedData);
-        }
-
-        // Update user's name
-        $user->name = $request->name;
-        $user->save();
+        $user->update($updateData);
 
         // Return updated user data
         return $this->ok('User profile updated successfully', new UserResource($user));
     }
+
     public function changePassword(Request $request)
     {
         $user = auth()->user();
@@ -86,7 +75,7 @@ class UserController extends Controller
             'old_password' => 'required',
             'new_password' => 'required|confirmed',
         ]);
-        $oldPassword = passwordHash($validatedData['old_password']);        
+        $oldPassword = passwordHash($validatedData['old_password']);
         if ($oldPassword == $user->sPass) {
             $user->sPass = passwordHash($validatedData['new_password']);
             $user->save();
@@ -101,7 +90,7 @@ class UserController extends Controller
         $validatedData = $request->validate([
             'old_pin' => 'required',
             'new_pin' => 'required|confirmed|digits:4|int',
-        ]);        
+        ]);
         if ($validatedData['old_pin'] == $user->sPin) {
             $user->sPin = $validatedData['new_pin'];
             $user->save();
