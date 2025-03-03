@@ -21,7 +21,7 @@ class ExamCardController extends Controller
     {
         $user = auth()->user();
         $validatedData = $request->validate([
-            'provider' => 'required',
+            'provider_id' => 'required',
             'quantity' => 'required',
             'pin' => 'required',
         ]);
@@ -34,7 +34,7 @@ class ExamCardController extends Controller
         //ref code
         $transRef = generateTransactionRef();
         $payload = [
-            'provider' => $request->provider,
+            'provider' => $request->provider_id,
             'quantity' => $request->quantity,
             'ref' => $transRef,
         ];

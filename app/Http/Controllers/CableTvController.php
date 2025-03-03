@@ -24,7 +24,7 @@ class CableTvController extends Controller
     {
         $user = auth()->user();
         $validatedData = $request->validate([
-            'provider' => 'required',
+            'provider_id' => 'required',
             'plan' => 'required',
             'price' => 'required',
             'type' => 'required',
@@ -32,7 +32,7 @@ class CableTvController extends Controller
             'iuc_no' => 'required',
             'pin' => 'required',
         ]);
-        $validatedIUC = $this->validateIUCNumber($validatedData['provider'], $validatedData['iuc_no'],$user->sApiKey);
+        $validatedIUC = $this->validateIUCNumber($validatedData['provider_id'], $validatedData['iuc_no'],$user->sApiKey);
         if ($validatedIUC['status'] == 'fail' || $validatedIUC['status'] == 'failed') {
             return $this->error([
                 'error' => 'IUC number validation failed',
@@ -49,7 +49,7 @@ class CableTvController extends Controller
         $transRef = generateTransactionRef();
          // Prepare API request payload
          $payload = [
-            'provider' => $request->provider,
+            'provider' => $request->provider_id,
             'customer_no' => $request->customer_no,
             'type' => $request->type,
             'iuc_no' => $request->iuc_no,
