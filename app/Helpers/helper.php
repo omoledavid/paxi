@@ -109,5 +109,5 @@ function validateMeterNumber($provider, $meternumber, $metertype, $apiKey)
 
     $result = $response->json();
 
-    return $result['msg'] ?? 'Verification failed';
+    return $result;
 }
