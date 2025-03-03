@@ -32,6 +32,14 @@ class CableTvController extends Controller
             'iuc_no' => 'required',
             'pin' => 'required',
         ]);
+        $validatedIUC = $this->validateIUCNumber($validatedData['provider'], $validatedData['iuc_no'],$user->sApiKey);
+        if ($validatedIUC['status'] == 'fail' || $validatedIUC['status'] == 'failed') {
+            return $this->error([
+                'error' => 'IUC number validation failed',
+                'msg' => $validatedIUC['msg'],
+                'rawdata' => $validatedIUC
+            ], 400);
+        }
         //check pin
         if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
@@ -64,5 +72,24 @@ class CableTvController extends Controller
             return $this->error($result['msg'] ?? 'Server error occurred.');
         }
 
+    }
+    private function validateIUCNumber(string $provider, string $iucNumber, $apiKey)
+    {
+        $siteUrl = env('FRONTEND_URL');;
+        $apiUrl = $siteUrl . "/api838190/cabletv/verify/";
+
+        // Send request using Laravel's Http client
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/json',
+            'Token' => "Token $apiKey",
+        ])->post($apiUrl, [
+            'provider' => $provider,
+            'iucnumber' => $iucNumber,
+        ]);
+
+        // Decode response
+        $result = $response->json();
+
+        return $result;
     }
 }
