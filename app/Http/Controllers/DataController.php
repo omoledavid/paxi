@@ -28,9 +28,9 @@ class DataController extends Controller
     {
         $user = auth()->user();
         $validatedData = $request->validate([
-            'network' => 'required',
+            'network_id' => 'required',
             'data_type' => 'required',
-            'data_plan' => 'required',
+            'data_plan_id' => 'required',
             'phone_number' => 'required',
             'pin' => 'required|digits:4|int',
         ]);
@@ -46,11 +46,11 @@ class DataController extends Controller
 
         // Prepare request payload
         $payload = [
-            'network' => $validatedData['network'],
+            'network' => $validatedData['network_id'],
             'phone' => $validatedData['phone_number'],
             'ported_number' => $request->boolean('ported_number', false) ? 'true' : 'false',
             'ref' => $transRef,
-            'data_plan' => $validatedData['data_plan'],
+            'data_plan' => $validatedData['data_plan_id'],
         ];
 
         // Make API request
