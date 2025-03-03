@@ -33,7 +33,6 @@ class ExamCardController extends Controller
         $host = env('FRONTEND_URL') . '/api838190/exam/';
         //ref code
         $transRef = generateTransactionRef();
-
         $payload = [
             'provider' => $request->provider,
             'quantity' => $request->quantity,

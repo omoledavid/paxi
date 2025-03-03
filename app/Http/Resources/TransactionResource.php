@@ -26,8 +26,8 @@ class TransactionResource extends JsonResource
                 'oldbal' => $this->oldbal,
                 'newbal' => $this->newbal,
                 'profit' => $this->profit,
-                'created_at' => $this->created_at->toDateTimeString(),
-                'updated_at' => $this->updated_at->toDateTimeString(),
+                'created_at' => $this->created_at?->toDateTimeString(),
+                'updated_at' => $this->updated_at?->toDateTimeString(),
             ]
         ];
     }
