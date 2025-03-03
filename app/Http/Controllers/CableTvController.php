@@ -36,7 +36,7 @@ class CableTvController extends Controller
         if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
         }
-        $host = env('FRONTEND_URL') . '/api838190/data/';
+        $host = env('FRONTEND_URL') . '/api838190/cabletv/';
         //ref code
         $transRef = generateTransactionRef();
          // Prepare API request payload

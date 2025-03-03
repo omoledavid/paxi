@@ -30,7 +30,7 @@ class ExamCardController extends Controller
         if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
         }
-        $host = env('FRONTEND_URL') . '/api838190/data/';
+        $host = env('FRONTEND_URL') . '/api838190/exam/';
         //ref code
         $transRef = generateTransactionRef();
 
@@ -46,7 +46,7 @@ class ExamCardController extends Controller
             'Token' => "Token {$user->sApiKey}",
         ])->post($host, $payload);
 
-        $result = $response->json(); 
+        $result = $response->json();
 
         // Handle API response
         if ($response->successful() && $result['status'] === 'success') {
