@@ -32,7 +32,10 @@ class ElectricityController extends Controller
             'pin' => 'required',
         ]);
         //validate meter no
-        return validateMeterNumber($validatedData['provider_id'],$validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
+        $validateMeter = validateMeterNumber($validatedData['provider_id'],$validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
+        if ($validateMeter['status'] == 'fail' || $validateMeter['status'] == 'failed') {
+            return $this->error($validateMeter['msg'], 400);
+        }
          //check pin
          if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
