@@ -10,6 +10,7 @@ use App\Http\Controllers\DataController;
 use App\Http\Controllers\ElectricityController;
 use App\Http\Controllers\ExamCardController;
 use App\Http\Controllers\GeneralController;
+use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -35,6 +36,8 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     });
     //User
     Route::apiResource('user', UserController::class);
+    //Transactions
+    Route::get('transactions', [TransactionController::class, 'index']);
     //Change password
     Route::post('changepass', UserController::class. '@changePassword');
     Route::post('changepin', UserController::class. '@changePin');

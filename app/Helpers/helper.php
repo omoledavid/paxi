@@ -1,6 +1,7 @@
 <?php
 
 use App\Mail\SendVerificationCode;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
 
@@ -92,4 +93,21 @@ function getConfigValue($list,$name){
     foreach($list AS $item){
         if($item->name == $name){return $item->value;}
     }
+}
+function validateMeterNumber($provider, $meternumber, $metertype, $apiKey)
+{
+    $siteUrl = env('FRONTEND_URL');
+
+    $response = Http::withHeaders([
+        'Content-Type' => 'application/json',
+        'Token' => "Token $apiKey",
+    ])->post("$siteUrl/api838190/electricity/verify/", [
+        'provider' => $provider,
+        'meternumber' => $meternumber,
+        'metertype' => $metertype,
+    ]);
+
+    $result = $response->json();
+
+    return $result['msg'] ?? 'Verification failed';
 }

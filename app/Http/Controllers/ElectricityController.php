@@ -24,24 +24,27 @@ class ElectricityController extends Controller
     {
         $user = auth()->user();
         $validatedData = $request->validate([
-            'provider' => 'required|string',
+            'provider_id' => 'required|string',
             'meter_type' => 'required|string',
             'customer_no' => 'required|string',
             'meter_no' => 'required|string',
             'amount' => 'required|numeric',
             'pin' => 'required',
         ]);
+        //validate meter no
+        return validateMeterNumber($validatedData['provider_id'],$validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
          //check pin
          if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
         }
+
         //ref code
         $transRef = generateTransactionRef();
 
-        $host = env('FRONTEND_URL') . '/api838190/data/';
+        $host = env('FRONTEND_URL') . '/api838190/electricity/';
          // Prepare API request payload
          $payload = [
-            'provider' => $request->provider,
+            'provider' => $request->provider_id,
             'phone' => $request->phone,
             'metertype' => $request->metertype,
             'meternumber' => $request->meternumber,
