@@ -26,7 +26,6 @@ class ElectricityController extends Controller
         $validatedData = $request->validate([
             'provider_id' => 'required|string',
             'meter_type' => 'required|string',
-            'customer_no' => 'required|string',
             'meter_no' => 'required|string',
             'amount' => 'required|numeric',
             'pin' => 'required',
