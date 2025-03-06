@@ -89,7 +89,7 @@ class ElectricityController extends Controller
         }
         return $this->ok('Verified meter no',[
             'customer_name' => $validateMeter['Customer_Name'] ?? $validateMeter['name'],
-            'meter_number' => $validateMeter['meter_no'],
+            'meter_number' => $validatedData['meter_no'],
         ]);
     }
 }
