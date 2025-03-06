@@ -84,18 +84,17 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'sPhone' => 'required|exists:subscribers,sPhone',
-            'password' => 'required|string|min:6'
+            'sPhone' => 'required',
+            'password' => 'required|string|min:6',
         ], [
-            'sPhone.required' => 'The phone number is required.',
-            'sPhone.exists' => 'This phone number is not registered.',
+            'sPhone.required' => 'The phone number or email is required.',
             'password.required' => 'Password is required.',
             'password.min' => 'Password must be at least 6 characters.',
         ]);
         $password = $request->password;
 
         // Retrieve the user by phone number
-        $user = User::firstWhere('sPhone', $request->sPhone);
+        $user = User::query()->where('sPhone', $request->sPhone)->orWhere('sEmail', $request->sPhone)->first();
 
         // Check if user exists
         if (!$user) {
