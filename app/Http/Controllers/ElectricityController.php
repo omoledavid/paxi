@@ -32,6 +32,7 @@ class ElectricityController extends Controller
         ]);
         //validate meter no
         $validateMeter = validateMeterNumber($validatedData['provider_id'],$validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
+        return $validateMeter;
         if ($validateMeter['status'] == 'fail' || $validateMeter['status'] == 'failed') {
             return $this->error($validateMeter['msg'], 400);
         }

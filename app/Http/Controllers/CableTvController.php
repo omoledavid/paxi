@@ -16,7 +16,7 @@ class CableTvController extends Controller
     {
         $cableTv = CableTv::with('plans')->get();
         return $this->ok('success',[
-            'subscription_type' => ['Chane', 'Renew'],
+            'subscription_type' => ['Change', 'Renew'],
             'cableTv' => CableTvResource::collection($cableTv),
         ]);
     }
