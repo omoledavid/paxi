@@ -49,9 +49,9 @@ class ElectricityController extends Controller
         // Prepare API request payload
         $payload = [
             'provider' => $request->provider_id,
-            'phone' => $request->phone,
-            'metertype' => $request->metertype,
-            'meternumber' => $request->meternumber,
+            'phone' => $request->phone_no,
+            'metertype' => $request->meter_type,
+            'meternumber' => $request->meter_no,
             'ref' => $transRef,
             'amount' => $request->amount,
         ];
