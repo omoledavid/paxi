@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     });
     //User
     Route::apiResource('user', UserController::class);
+    Route::post('wallet-transfer', [UserController::class, 'walletTransfer']);
     //Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
     //Change password

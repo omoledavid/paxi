@@ -1,6 +1,9 @@
 <?php
 
 use App\Mail\SendVerificationCode;
+use App\Models\GeneralSetting;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
@@ -110,4 +113,45 @@ function validateMeterNumber($provider, $meternumber, $metertype, $apiKey)
     $result = $response->json();
 
     return $result;
+}
+function TransactionLog(
+    int $user_id,
+    string $transRef,
+    string $serviceName,
+    string $serviceDesc,
+    float $amount,
+    int $status,
+    float $oldBal,
+    float $newBal,
+    float $profit = 1
+) {
+    // Example logic for logging the transaction
+    DB::table('transactions')->insert([
+        'sId' => $user_id,
+        'transref' => $transRef,
+        'servicename' => $serviceName,
+        'servicedesc' => $serviceDesc,
+        'amount' => $amount,
+        'status' => $status,
+        'oldbal' => $oldBal,
+        'newbal' => $newBal,
+        'profit' => $profit,
+        'date' => now(),
+        'created_at' => now(),
+    ]);
+
+    return true; // or return the inserted transaction details
+}
+function gs($key = null)
+{
+    $general = Cache::get('GeneralSetting');
+    if (!$general) {
+        $general = GeneralSetting::first();
+        Cache::put('GeneralSetting', $general);
+    }
+    if ($key) {
+        return @$general->$key;
+    }
+
+    return $general;
 }
