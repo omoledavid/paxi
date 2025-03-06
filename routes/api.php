@@ -53,6 +53,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::prefix('electricity')->group(function () {
             Route::get('/', 'index');
             Route::post('/', 'purchaseElectricity');
+            Route::post('/verify-meter', 'verifyMeterNo');
         });
     });
     //Airtime

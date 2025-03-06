@@ -20,6 +20,7 @@ class ElectricityController extends Controller
             'meter_type' => ['Prepaid', 'Postpaid']
         ]);
     }
+
     public function purchaseElectricity(Request $request)
     {
         $user = auth()->user();
@@ -31,13 +32,13 @@ class ElectricityController extends Controller
             'pin' => 'required',
         ]);
         //validate meter no
-        $validateMeter = validateMeterNumber($validatedData['provider_id'],$validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
-        return $validateMeter;
+        $validateMeter = validateMeterNumber($validatedData['provider_id'], $validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
+
         if ($validateMeter['status'] == 'fail' || $validateMeter['status'] == 'failed') {
             return $this->error($validateMeter['msg'], 400);
         }
-         //check pin
-         if ($user->sPin != $validatedData['pin']) {
+        //check pin
+        if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
         }
 
@@ -45,8 +46,8 @@ class ElectricityController extends Controller
         $transRef = generateTransactionRef();
 
         $host = env('FRONTEND_URL') . '/api838190/electricity/';
-         // Prepare API request payload
-         $payload = [
+        // Prepare API request payload
+        $payload = [
             'provider' => $request->provider_id,
             'phone' => $request->phone,
             'metertype' => $request->metertype,
@@ -71,5 +72,24 @@ class ElectricityController extends Controller
         } else {
             return $this->error($result['msg'] ?? 'Unknown error');
         }
+    }
+
+    public function verifyMeterNo(Request $request)
+    {
+        $user = auth()->user();
+        $validatedData = $request->validate([
+            'provider_id' => 'required|string',
+            'meter_type' => 'required|string',
+            'meter_no' => 'required|string',
+        ]);
+        //validate meter no
+        $validateMeter = validateMeterNumber($validatedData['provider_id'], $validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
+        if ($validateMeter['status'] == 'fail' || $validateMeter['status'] == 'failed') {
+            return $this->error($validateMeter['msg'], 400);
+        }
+        return $this->ok('Verified meter no',[
+            'customer_name' => $validateMeter['Customer_Name'] ?? $validateMeter['name'],
+            'meter_number' => $validateMeter['meter_no'],
+        ]);
     }
 }
