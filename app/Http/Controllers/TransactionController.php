@@ -13,7 +13,7 @@ class TransactionController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $transaction = Transaction::query()->where('sId', $user->sId)->get();
+        $transaction = Transaction::query()->where('sId', $user->sId)->latest('tId')->get();
         if ($transaction) {
             return $this->ok('All transactions',  TransactionResource::collection($transaction));
         }
