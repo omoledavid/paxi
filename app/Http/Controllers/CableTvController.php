@@ -92,4 +92,14 @@ class CableTvController extends Controller
 
         return $result;
     }
+    public function verifyIUC(Request $request)
+    {
+        $user = auth()->user();
+        $request->validate([
+            'provider_id' => 'required',
+            'iuc_no' => 'required',
+        ]);
+        $data = $this->validateIUCNumber($request->provider_id, $request->iuc_no,$user->sApiKey);
+        return $this->ok('success', $data);
+    }
 }

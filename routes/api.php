@@ -69,6 +69,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::prefix('cable')->group(function () {
             Route::get('/', 'index');
             Route::post('/', 'purchaseCableTv');
+            Route::post('/verify', 'verifyIUC');
         });
     });
     //Exam Card
