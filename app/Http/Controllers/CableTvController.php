@@ -52,7 +52,7 @@ class CableTvController extends Controller
             'provider' => $request->provider_id,
             'customer_no' => $request->customer_no,
             'type' => $request->type,
-            'iuc_no' => $request->iuc_no,
+            'iucnumber' => $request->iuc_no,
             'ref' => $transRef,
             'plan' => $request->plan,
         ];
