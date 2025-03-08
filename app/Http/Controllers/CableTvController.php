@@ -25,7 +25,7 @@ class CableTvController extends Controller
         $user = auth()->user();
         $validatedData = $request->validate([
             'provider_id' => 'required',
-            'plan' => 'required',
+            'plan_id' => 'required',
             'price' => 'required',
             'type' => 'required',
             'customer_no' => 'required',
@@ -54,7 +54,7 @@ class CableTvController extends Controller
             'type' => $request->type,
             'iucnumber' => $request->iuc_no,
             'ref' => $transRef,
-            'plan' => $request->plan,
+            'plan' => $request->plan_id,
         ];
 
         // Send API request
