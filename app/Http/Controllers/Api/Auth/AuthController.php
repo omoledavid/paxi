@@ -52,15 +52,15 @@ class AuthController extends Controller
         $user->save();
 
         sendVerificationCode($verCode, $user->sEmail);
-        $token = $user->createToken('auth_token',['*'])->plainTextToken;
+        $token = $user->createToken('auth_token', ['*'])->plainTextToken;
         //Generate User Login Token
         $randomToken = substr(str_shuffle("ABCDEFGHIJklmnopqrstvwxyz"), 0, 10);
         $userLoginToken = time() . $randomToken . mt_rand(100, 1000);
 
-//        $userLogin = new UserLogin();
-//        $userLogin->user = $user->sId;
-//        $userLogin->token = $userLoginToken;
-//        $userLogin->save();
+        //        $userLogin = new UserLogin();
+        //        $userLogin->user = $user->sId;
+        //        $userLogin->token = $userLoginToken;
+        //        $userLogin->save();
 
         //create virtual account
         $apiConfig = ApiConfig::all();
@@ -69,12 +69,11 @@ class AuthController extends Controller
         $monifyStatus = getConfigValue($apiConfig, 'monifyStatus');
         $monnifyContract = getConfigValue($apiConfig, 'monifyContract');
 
-        if($monifyStatus == 'On')
-        {
-            $this->createVirtualBankAccount($user,$monnifyApi, $monnifySecret, $monnifyContract);
+        if ($monifyStatus == 'On') {
+            $this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
         }
 
-//        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
+        //        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
         return $this->ok('User registered successfully. Please verify your email address.', [
             'user' => $user,
             'token' => $token
@@ -100,6 +99,15 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json(['error' => 'User not found.'], 404);
         }
+        if ($user->sRegStatus == 1) {
+            return $this->error(['Your account is blocked'], 401);
+        }
+        if ($user->sRegStatus == 2) {
+            return $this->error(['Your account is pending verification.'], 401);
+        }
+        if ($user->sRegStatus == 3) {
+            return $this->error(['Your account is not verified.'], 401);
+        }
 
         // Verify the password
         $hashPassword = passwordHash($password);
@@ -116,7 +124,7 @@ class AuthController extends Controller
             [
                 'token' => $token,
                 'user' => [
-                    'name' => $user->sFname. ' ' . $user->sLname,
+                    'name' => $user->sFname . ' ' . $user->sLname,
                     'email' => $user->sEmail,
                 ],
             ]
@@ -124,7 +132,7 @@ class AuthController extends Controller
     }
 
 
-    public function logout(Request $request):JsonResponse
+    public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
         return $this->ok('Logged out');
@@ -187,5 +195,4 @@ class AuthController extends Controller
             }
         }
     }
-
 }

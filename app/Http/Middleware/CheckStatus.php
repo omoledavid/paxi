@@ -21,6 +21,7 @@ class CheckStatus
             if ($user->sRegStatus == 0) {
                 return $next($request);
             } else {
+                Auth::logout(); // Log the user out
                 if ($request->is('api/*')) {
                     return response()->json([
                         'message' => 'You need to verify your account first.',
