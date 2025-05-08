@@ -116,7 +116,7 @@ class UserController extends Controller
         $charge = gs('wallettowalletcharges');
         $senderOldBal = $user->sWallet;
         $validatedData = $request->validate([
-            'amount' => 'required|numeric',
+            'amount' => 'required|integer|min:1',
             'email' => 'required|email|exists:subscribers,sEmail',
             'pin' => 'required|digits:4|int',
         ],[
@@ -125,14 +125,14 @@ class UserController extends Controller
         if($user->sEmail == $validatedData['email']){
             return $this->error('Can\'t transfer to yourself');
         }
-        if($user->sWallet < $validatedData['amount']) {
+        if($senderOldBal < $validatedData['amount']) {
             return $this->error('Insufficient wallet balance');
         }
         if($user->sPin != $validatedData['pin']) {
             return $this->error('Incorrect pin');
         }
         $receiver = User::query()->where('sEmail', $validatedData['email'])->first();
-        $receiverOldBal = $user->sWallet;
+        $receiverOldBal = $receiver->sWallet;
         $senderNewBal = $senderOldBal - $validatedData['amount'];
         $receiverNewBal = $receiverOldBal + ($validatedData['amount'] - $charge);
         $totalToPay = $validatedData['amount'] - $charge;
@@ -144,7 +144,7 @@ class UserController extends Controller
             $user->save();
             TransactionLog($user->sId, generateTransactionRef(), TransactionType::WALLET_TRANSFER, $senderDesc, $validatedData['amount'],0,$receiverOldBal,$senderNewBal, 0);
 
-            $receiver->sWallet += $validatedData['amount'];
+            $receiver->sWallet += ($validatedData['amount'] - $charge);
             $receiver->save();
             TransactionLog($receiver->sId, generateTransactionRef(), TransactionType::WALLET_TRANSFER,$receiverDesc, $validatedData['amount'],0,$senderOldBal,$receiverNewBal, 0);
 
