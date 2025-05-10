@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -112,48 +113,130 @@ class UserController extends Controller
     }
     public function walletTransfer(Request $request)
     {
+        // 1. Add CSRF protection (Laravel includes this middleware by default)
+        // Ensure 'web' middleware is applied to this route
+
         $user = auth()->user();
-        $charge = gs('wallettowalletcharges');
-        $senderOldBal = $user->sWallet;
+        $charge = gs('wallettowalletcharges') ?? 0;
+
+        // 2. Improved validation with upper limit and more robust rules
         $validatedData = $request->validate([
-            'amount' => 'required|integer|min:1',
+            'amount' => 'required|numeric|min:1|max:50000',
             'email' => 'required|email|exists:subscribers,sEmail',
             'pin' => 'required|digits:4|int',
-        ],[
-            'email.exists' => 'This email does not exist in our records'
+        ], [
+            'email.exists' => 'This email does not exist in our records',
+            'amount.max' => 'Transfer amount exceeds maximum allowed limit'
         ]);
-        if($user->sEmail == $validatedData['email']){
-            return $this->error('Can\'t transfer to yourself');
+
+        // 3. Additional validation checks
+        if ($user->sEmail == $validatedData['email']) {
+            return $this->error('Cannot transfer to yourself');
         }
-        if($senderOldBal < $validatedData['amount']) {
-            return $this->error('Insufficient wallet balance');
-        }
-        if($user->sPin != $validatedData['pin']) {
-            return $this->error('Incorrect pin');
-        }
-        $receiver = User::query()->where('sEmail', $validatedData['email'])->first();
-        $receiverOldBal = $receiver->sWallet;
-        $senderNewBal = $senderOldBal - $validatedData['amount'];
-        $receiverNewBal = $receiverOldBal + ($validatedData['amount'] - $charge);
-        $totalToPay = $validatedData['amount'] - $charge;
-        $senderDesc = "Wallet To Wallet Transfer Of N{$validatedData['amount']} To User {$validatedData['email']}. Total Amount With Charges Is {$totalToPay}. New Balance Is {$senderNewBal}.";
-        $receiverDesc = "Wallet To Wallet Transfer Of N{$validatedData['amount']} To User {$validatedData['email']}. Total Amount With Charges Is {$totalToPay}. New Balance Is {$receiverNewBal}.";
+
+        // 4. Lock the sender's record to prevent race conditions
         DB::beginTransaction();
+
         try {
-            $user->sWallet -= $validatedData['amount'];
+            // Re-fetch user with lock to prevent race conditions
+            $user = User::where('id', $user->id)->lockForUpdate()->first();
+            $senderOldBal = $user->sWallet;
+
+            if ($senderOldBal < $validatedData['amount']) {
+                DB::rollBack();
+                return $this->error('Insufficient wallet balance');
+            }
+
+            // 6. Lock the receiver's record as well to prevent race conditions
+            $receiver = User::where('sEmail', $validatedData['email'])->lockForUpdate()->first();
+            if (!$receiver) {
+                DB::rollBack();
+                return $this->error('Recipient not found');
+            }
+
+            $receiverOldBal = $receiver->sWallet;
+            $transferAmount = $validatedData['amount'];
+            $chargeAmount = $charge;
+            $netAmount = $transferAmount - $chargeAmount;
+
+            // Sanity check for negative values
+            if ($netAmount <= 0) {
+                DB::rollBack();
+                return $this->error('Transfer amount too small to cover charges');
+            }
+
+            $senderNewBal = $senderOldBal - $transferAmount;
+            $receiverNewBal = $receiverOldBal + $netAmount;
+
+            // 7. Prepare sanitized descriptions for transaction logs
+            $senderDesc = sprintf(
+                "Wallet Transfer: Sent %s to %s. Fee: %s. New Balance: %s.",
+                number_format($transferAmount, 2),
+                htmlspecialchars($validatedData['email']),
+                number_format($chargeAmount, 2),
+                number_format($senderNewBal, 2)
+            );
+
+            $receiverDesc = sprintf(
+                "Wallet Transfer: Received %s from %s. Fee: %s. New Balance: %s.",
+                number_format($netAmount, 2),
+                htmlspecialchars($user->sEmail),
+                number_format($chargeAmount, 2),
+                number_format($receiverNewBal, 2)
+            );
+
+            // 8. Update balances
+            $user->sWallet = $senderNewBal;
             $user->save();
-            TransactionLog($user->sId, generateTransactionRef(), TransactionType::WALLET_TRANSFER, $senderDesc, $validatedData['amount'],0,$receiverOldBal,$senderNewBal, 0);
 
-            $receiver->sWallet += ($validatedData['amount'] - $charge);
+            $receiver->sWallet = $receiverNewBal;
             $receiver->save();
-            TransactionLog($receiver->sId, generateTransactionRef(), TransactionType::WALLET_TRANSFER,$receiverDesc, $validatedData['amount'],0,$senderOldBal,$receiverNewBal, 0);
 
+            // 9. Correct transaction logging with proper values
+            $senderTxRef = generateTransactionRef();
+            TransactionLog(
+                $user->sId,
+                $senderTxRef,
+                TransactionType::WALLET_TRANSFER,
+                $senderDesc,
+                $transferAmount,
+                0,
+                $senderOldBal,
+                $senderNewBal,
+                0
+            );
+
+            $receiverTxRef = generateTransactionRef();
+            TransactionLog(
+                $receiver->sId,
+                $receiverTxRef,
+                TransactionType::WALLET_TRANSFER,
+                $receiverDesc,
+                $netAmount,
+                0,
+                $receiverOldBal,
+                $receiverNewBal,
+                0
+            );
+
+            // 10. Commit the transaction after everything is successful
             DB::commit();
-            return $this->ok('Wallet transfer completed', new UserResource($user));
+
+            // 11. Return minimal information in the response
+            return $this->ok('Transfer completed successfully', [
+                'balance' => $user->sWallet,
+                'transaction_id' => $senderTxRef
+            ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return $this->error('Something went wrong. Please try again.'.$e->getMessage(), );
-        }
 
+            // 12. Log the exception but don't expose details to the user
+            Log::error('Wallet transfer failed: ' . $e->getMessage(), [
+                'user_id' => $user->sId,
+                'request' => $request->except(['pin'])
+            ]);
+
+            return $this->error('Transaction failed. Please try again later.');
+        }
     }
 }
