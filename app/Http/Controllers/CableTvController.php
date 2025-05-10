@@ -26,7 +26,7 @@ class CableTvController extends Controller
         $validatedData = $request->validate([
             'provider_id' => 'required',
             'plan_id' => 'required',
-            'price' => 'required',
+            'price' => 'required|integer|min:1',
             'type' => 'required',
             'customer_no' => 'required',
             'iuc_no' => 'required',

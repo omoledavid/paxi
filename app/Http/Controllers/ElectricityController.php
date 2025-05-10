@@ -28,7 +28,7 @@ class ElectricityController extends Controller
             'provider_id' => 'required|string',
             'meter_type' => 'required|string',
             'meter_no' => 'required|string',
-            'amount' => 'required|numeric',
+            'amount' => 'required|numeric|min:1',
             'pin' => 'required',
         ]);
         //validate meter no
