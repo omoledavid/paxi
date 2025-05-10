@@ -139,7 +139,7 @@ class UserController extends Controller
 
         try {
             // Re-fetch user with lock to prevent race conditions
-            $user = User::where('id', $user->id)->lockForUpdate()->first();
+            $user = User::where('sId', $user->sId)->lockForUpdate()->first();
             $senderOldBal = $user->sWallet;
 
             if ($senderOldBal < $validatedData['amount']) {
