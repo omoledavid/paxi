@@ -19,7 +19,7 @@ class ForgotPasswordController extends Controller
     {
         $request->validate([
             'email' => 'required|email|exists:subscribers,sEmail',
-        ],[
+        ], [
             'email.exists' => 'This email does not exist in our records.',
         ]);
         $user = User::query()->firstWhere('sEmail', $request->email);
@@ -33,28 +33,39 @@ class ForgotPasswordController extends Controller
         $password->save();
 
         $mailSent = sendVerificationCode($code, $user->sEmail, 'Reset Password');
-        if(!$mailSent){
+        if (!$mailSent) {
             $this->error('Something went wrong please try again later');
         }
-        return $this->success('Reset code sent to your email',[
+        return $this->success('Reset code sent to your email', [
             'email' => $user->sEmail,
         ]);
     }
 
     public function verifyCode(Request $request)
     {
-        $request->validate([
-            'code' => 'required',
-            'email' => 'required|exists:subscribers,sEmail',
-        ],
-        [
-            'email.exists' => 'This email does not exist in our records.',
-        ]);
+        $request->validate(
+            [
+                'code' => 'required',
+                'email' => 'required|exists:subscribers,sEmail',
+            ],
+            [
+                'email.exists' => 'This email does not exist in our records.',
+            ]
+        );
 
         $code = $request->code;
 
-        if (PasswordReset::where('token', $code)->where('email', $request->email)->count() != 1) {
+        $passwordReset = PasswordReset::where('token', $code)
+            ->where('email', $request->email)
+            ->first();
+
+        if (!$passwordReset) {
             return $this->error('Verification code doesn\'t match');
+        }
+
+        // Check if the code has expired (5 minutes)
+        if ($passwordReset->created_at->addMinutes(5)->isPast()) {
+            return $this->error('Verification code has expired. Please request a new one.');
         }
 
         return $this->ok('You can change your password.');
@@ -67,12 +78,18 @@ class ForgotPasswordController extends Controller
             'token' => 'required',
             'email' => 'required|exists:subscribers,sEmail',
             'password' => ['required', 'confirmed', Password::min(8)]
-        ],[
+        ], [
             'email.exists' => 'This email does not exist in our records.',
         ]);
         $reset = PasswordReset::query()->where('token', $request->token)->orderBy('created_at', 'desc')->first();
         if (!$reset) {
             return $this->error('Invalid verification code');
+        }
+
+        // Check if the code has expired (5 minutes)
+        if ($reset->created_at->addMinutes(5)->isPast()) {
+            $reset->delete();
+            return $this->error('Verification code has expired. Please request a new one.');
         }
 
         $user = User::where('sEmail', $reset->email)->first();

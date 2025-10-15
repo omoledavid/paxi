@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -23,9 +24,9 @@ class AuthController extends Controller
             'lname' => 'required',
             'sEmail' => 'required|email|unique:subscribers',
             'sPhone' => 'required|unique:subscribers|',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => ['required', Password::defaults(), 'confirmed'],
             'state' => 'nullable',
-            'pin' => 'nullable',
+            'pin' => 'nullable|min:4',
             'referral' => 'nullable'
         ]);
         if (preg_match("/[^a-zA-Z0-9_ ]/", $request->fname)) {
@@ -48,6 +49,7 @@ class AuthController extends Controller
         $user->sReferal = $validatedData['referral'];
         $user->sPin = $validatedData['pin'];
         $user->sVerCode = $verCode;
+        $user->sVerCodeExpiry = now()->addMinutes(5);
         $user->sRegStatus = 3;
         $user->save();
 
@@ -163,16 +165,16 @@ class AuthController extends Controller
             'Authorization' => "Bearer {$accessToken}",
             'Content-Type' => 'application/json',
         ])->post($accountCreationUrl, [
-            "accountReference" => $ref,
-            "accountName" => $fullname,
-            "currencyCode" => "NGN",
-            "contractCode" => $monnifyContract,
-            "customerEmail" => $user->sEmail,
-            "bvn" => "22433145825",
-            "customerName" => $fullname,
-            "getAllAvailableBanks" => false,
-            "preferredBanks" => ["035"],
-        ]);
+                    "accountReference" => $ref,
+                    "accountName" => $fullname,
+                    "currencyCode" => "NGN",
+                    "contractCode" => $monnifyContract,
+                    "customerEmail" => $user->sEmail,
+                    "bvn" => "22433145825",
+                    "customerName" => $fullname,
+                    "getAllAvailableBanks" => false,
+                    "preferredBanks" => ["035"],
+                ]);
 
         if ($accountCreationResponse->failed()) {
             throw new \Exception('Failed to create virtual bank account.');
