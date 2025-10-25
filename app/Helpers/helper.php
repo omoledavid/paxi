@@ -6,12 +6,12 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 
 function apiKeyGen()
 {
-    return $apiKey = substr(str_shuffle("0123456789ABCDEFGHIJklmnopqrstvwxyzAbAcAdAeAfAgAhBaBbBcBdC1C23C3C4C5C6C7C8C9xix2x3"), 0, 60) . time();
-
+    return Str::random(64);
 }
 function verificationCode($length)
 {
@@ -27,7 +27,7 @@ function sendVerificationCode($code, $email, $subject = 'Account Verification')
 {
     try {
         Mail::to($email)->send(new SendVerificationCode($code, $subject));
-    }catch (\Exception $exception){
+    } catch (\Exception $exception) {
         return false;
     }
 }
@@ -66,7 +66,7 @@ function verifyNetwork(string $phone, string $selectedNetwork = ''): array
     // Handle "ETISALAT" as "9MOBILE"
     if (strtoupper($selectedNetwork) === 'ETISALAT') {
         $selectedNetwork = '9MOBILE';
-    }else {
+    } else {
         $selectedNetwork = $identifiedNetwork;
     }
 
@@ -82,8 +82,9 @@ function verifyNetwork(string $phone, string $selectedNetwork = ''): array
     ];
 }
 
-function generateTransactionRef(){
-    $tranId=rand(1000,9999).time();
+function generateTransactionRef()
+{
+    $tranId = rand(1000, 9999) . time();
     return $tranId;
 }
 
@@ -92,9 +93,12 @@ function passwordHash(string $password): string
     return substr(sha1(md5($password)), 3, 10);
 }
 
-function getConfigValue($list,$name){
-    foreach($list AS $item){
-        if($item->name == $name){return $item->value;}
+function getConfigValue($list, $name)
+{
+    foreach ($list as $item) {
+        if ($item->name == $name) {
+            return $item->value;
+        }
     }
 }
 function validateMeterNumber($provider, $meternumber, $metertype, $apiKey)
@@ -105,10 +109,10 @@ function validateMeterNumber($provider, $meternumber, $metertype, $apiKey)
         'Content-Type' => 'application/json',
         'Token' => "Token $apiKey",
     ])->post("$siteUrl/api838190/electricity/verify/", [
-        'provider' => $provider,
-        'meternumber' => $meternumber,
-        'metertype' => $metertype,
-    ]);
+                'provider' => $provider,
+                'meternumber' => $meternumber,
+                'metertype' => $metertype,
+            ]);
 
     $result = $response->json();
 

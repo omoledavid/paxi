@@ -20,6 +20,9 @@ class AuthorizationController extends Controller
         $user = auth()->user();
         if ($user->sRegStatus === 3) {
             $verCode = $user->sVerCode;
+            // Update expiry when resending
+            $user->sVerCodeExpiry = Carbon::now()->addMinutes(5);
+            $user->save();
             sendVerificationCode($verCode, $user->sEmail);
             return $this->ok('A verification code has been sent, kindly verify your account', new UserResource($user));
         } else {
@@ -36,7 +39,8 @@ class AuthorizationController extends Controller
         $user = User::query()->where('sEmail', $validatedData['email'])->first();
 
 
-        $user->sVerCode = verificationCode(4);
+        $user->sVerCode = verificationCode(6);
+        $user->sVerCodeExpiry = Carbon::now()->addMinutes(5);
         $user->updated_at = Carbon::now();
         $user->save();
         $code = $user->sVerCode;
@@ -48,19 +52,31 @@ class AuthorizationController extends Controller
     public function emailVerification(Request $request)
     {
         $request->validate([
-            'code' => 'required|exists:subscribers,sVerCode',
-            'email' => 'required|exists:subscribers,sEmail'
+            'code' => 'required',
+            'email' => 'required|email|exists:subscribers,sEmail'
         ]);
 
-        $user = User::query()->where('sEmail', $request->email)->first();
+        // Verify code AND email match in a single query
+        $user = User::query()
+            ->where('sEmail', $request->email)
+            ->where('sVerCode', $request->code)
+            ->first();
 
-        if ($user->sVerCode == $request->code) {
-            $user->sVerCode = 0;
-            $user->sRegStatus = 0;
-            $user->save();
-
-            return $this->ok('Email verified successfully');
+        if (!$user) {
+            return $this->error('Invalid verification code.');
         }
+
+        // Check if the verification code has expired
+        if ($user->sVerCodeExpiry && Carbon::now()->greaterThan($user->sVerCodeExpiry)) {
+            return $this->error('Verification code has expired. Please request a new one.');
+        }
+
+        $user->sVerCode = 0;
+        $user->sVerCodeExpiry = null;
+        $user->sRegStatus = 0;
+        $user->save();
+
+        return $this->ok('Email verified successfully');
     }
 
     public function mobileVerification(Request $request)
