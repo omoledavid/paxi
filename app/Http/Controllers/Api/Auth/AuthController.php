@@ -72,7 +72,7 @@ class AuthController extends Controller
         $monnifyContract = getConfigValue($apiConfig, 'monifyContract');
 
         if ($monifyStatus == 'On') {
-            $this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
+            //$this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
         }
 
         //        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
