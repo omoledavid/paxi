@@ -23,7 +23,7 @@ class AuthController extends Controller
             'fname' => 'required',
             'lname' => 'required',
             'sEmail' => 'required|email|unique:subscribers',
-            'sPhone' => 'required|unique:subscribers|',
+            'sPhone' => ['required', 'unique:subscribers', 'regex:/^0\d{10}$/'],
             'password' => ['required', Password::defaults(), 'confirmed'],
             'state' => 'nullable',
             'pin' => 'nullable|min:4',
