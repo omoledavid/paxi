@@ -32,6 +32,27 @@ function sendVerificationCode($code, $email, $subject = 'Account Verification')
     }
 }
 
+/**
+ * Normalize a Nigerian phone number to standard format
+ * Converts 234XXXXXXXXXX to 0XXXXXXXXXX
+ * Removes all non-numeric characters
+ *
+ * @param string $phone The phone number to normalize
+ * @return string The normalized phone number
+ */
+function normalizeNigerianPhone(string $phone): string
+{
+    // Remove all non-numeric characters
+    $phone = preg_replace('/[^0-9]/', '', $phone);
+
+    // Convert 234 format to 0 format
+    if (str_starts_with($phone, '234') && strlen($phone) === 13) {
+        $phone = '0' . substr($phone, 3);
+    }
+
+    return $phone;
+}
+
 function verifyNetwork(string $phone, string $selectedNetwork = ''): array
 {
     $phonePrefix = substr($phone, 0, 4);

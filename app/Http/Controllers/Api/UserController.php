@@ -6,6 +6,7 @@ use App\Enums\TransactionType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +54,7 @@ class UserController extends Controller
         $validatedData = $request->validate([
             'fname' => 'nullable|string',
             'lname' => 'nullable|string',
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', new NigerianPhone()],
             'state' => 'nullable|string',
         ]);
 
@@ -61,7 +62,7 @@ class UserController extends Controller
         $updateData = array_filter([
             'sFname' => $validatedData['fname'] ?? $user->sFname,
             'sLname' => $validatedData['lname'] ?? $user->sLname,
-            'sPhone' => $validatedData['phone'] ?? $user->sPhone,
+            'sPhone' => isset($validatedData['phone']) ? NigerianPhone::normalize($validatedData['phone']) : $user->sPhone,
             'sState' => $validatedData['state'] ?? $user->sState,
         ], fn($value) => !is_null($value)); // This prevents null values from overriding existing data
 

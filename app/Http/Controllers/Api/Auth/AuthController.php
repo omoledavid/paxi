@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ApiConfig;
 use App\Models\User;
 use App\Models\UserLogin;
+use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class AuthController extends Controller
             'fname' => 'required',
             'lname' => 'required',
             'sEmail' => 'required|email|unique:subscribers',
-            'sPhone' => ['required', 'unique:subscribers', 'regex:/^0\d{10}$/'],
+            'sPhone' => ['required', 'unique:subscribers', new NigerianPhone()],
             'password' => ['required', Password::defaults(), 'confirmed'],
             'state' => 'nullable',
             'pin' => 'nullable|min:4',
@@ -41,7 +42,7 @@ class AuthController extends Controller
         $user->sFname = $validatedData['fname'];
         $user->sLname = $validatedData['lname'];
         $user->sEmail = $validatedData['sEmail'];
-        $user->sPhone = $validatedData['sPhone'];
+        $user->sPhone = NigerianPhone::normalize($validatedData['sPhone']);
         $user->sPass = passwordHash($validatedData['password']);
         $user->sState = $validatedData['state'];
         $user->sType = $userType;
