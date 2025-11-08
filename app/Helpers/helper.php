@@ -2,6 +2,7 @@
 
 use App\Mail\SendVerificationCode;
 use App\Models\GeneralSetting;
+use App\Services\GatewayApiService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -51,6 +52,29 @@ function normalizeNigerianPhone(string $phone): string
     }
 
     return $phone;
+}
+
+/**
+ * Send SMS verification code via GatewayAPI
+ *
+ * @param string $code The verification code to send
+ * @param string $phone The phone number in 0XXXXXXXXXX format
+ * @return bool True if SMS was sent successfully, false otherwise
+ */
+function sendSmsVerificationCode(string $code, string $phone): bool
+{
+    try {
+        $gatewayApi = new GatewayApiService();
+        $result = $gatewayApi->sendVerificationCode($phone, $code);
+
+        return $result['success'] ?? false;
+    } catch (\Exception $exception) {
+        \Illuminate\Support\Facades\Log::error('Failed to send SMS verification code', [
+            'phone' => $phone,
+            'error' => $exception->getMessage()
+        ]);
+        return false;
+    }
 }
 
 function verifyNetwork(string $phone, string $selectedNetwork = ''): array

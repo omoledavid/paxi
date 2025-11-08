@@ -104,6 +104,34 @@ class UserController extends Controller
         }
     }
 
+    public function changePhoneNumber(Request $request)
+    {
+        $user = auth()->user();
+
+        // Security check: Only allow change if mobile NOT yet verified
+        if ($user->sMobileVerified) {
+            return $this->error('Cannot change phone number after verification.', 403);
+        }
+
+        // Validate the new phone number
+        $validatedData = $request->validate([
+            'new_phone' => ['required', new NigerianPhone(), 'unique:subscribers,sPhone'],
+        ], [
+            'new_phone.unique' => 'This phone number is already in use.',
+        ]);
+
+        // Normalize the phone number
+        $normalizedPhone = NigerianPhone::normalize($validatedData['new_phone']);
+
+        // Update phone number and clear any existing verification codes
+        $user->sPhone = $normalizedPhone;
+        $user->sMobileVerCode = null;
+        $user->sMobileVerCodeExpiry = null;
+        $user->save();
+
+        return $this->ok('Phone number updated successfully. Please verify your new number.', new UserResource($user));
+    }
+
 
     /**
      * Remove the specified resource from storage.

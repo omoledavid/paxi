@@ -18,21 +18,39 @@ class CheckStatus
     {
         if (Auth::check()) {
             $user = auth()->user();
-            if ($user->sRegStatus == 0) {
+
+            // Check if both email and mobile are verified
+            $emailVerified = $user->sRegStatus == 0;
+            $mobileVerified = $user->sMobileVerified ?? false;
+
+            if ($emailVerified && $mobileVerified) {
                 return $next($request);
             } else {
                 Auth::logout(); // Log the user out
+
+                $message = 'You need to verify your account first.';
+                $verificationStatus = [
+                    'email_verified' => $emailVerified,
+                    'mobile_verified' => $mobileVerified,
+                ];
+
+                if (!$emailVerified && !$mobileVerified) {
+                    $message = 'You need to verify both your email and mobile number.';
+                } elseif (!$emailVerified) {
+                    $message = 'You need to verify your email address.';
+                } elseif (!$mobileVerified) {
+                    $message = 'You need to verify your mobile number.';
+                }
+
                 if ($request->is('api/*')) {
                     return response()->json([
-                        'message' => 'You need to verify your account first.',
-                        'data' => [
-                            'email_verified' => false,
-                        ],
-                    ]);
+                        'message' => $message,
+                        'data' => $verificationStatus,
+                    ], 403);
                 } else {
                     return response()->json([
-                        'message' => 'You need to verify your account first.',
-                    ]);
+                        'message' => $message,
+                    ], 403);
                 }
             }
         }

@@ -27,7 +27,9 @@ class UserResource extends JsonResource
                 'wallet_balance' => $this->sWallet,
                 'referral_wallet_balance' => $this->sRefWallet,
                 'apiKey' => $this->sApiKey,
-                'verification_status' => !(($this->sRegSatus === 3)),
+                'email_verified' => $this->sRegStatus == 0,
+                'mobile_verified' => $this->sMobileVerified ?? false,
+                'verification_status' => ($this->sRegStatus == 0) && ($this->sMobileVerified ?? false),
                 'referral_link' => env('FRONTEND_URL').'/mobile/register/?referral='.$this->sPhone,
                 'banks' => [
                     [

@@ -26,13 +26,17 @@ Route::controller(ForgotPasswordController::class)->group(function () {
 });
 Route::post('verify-email', [AuthorizationController::class, 'emailVerification'])->middleware('throttle:10,60');
 Route::post('resend-verify/{type}', [AuthorizationController::class, 'sendVerifyCode'])->middleware('throttle:3,60');
+Route::post('send-sms-code', [AuthorizationController::class, 'sendSmsVerificationCode'])->middleware('throttle:3,60');
+Route::post('verify-sms-code', [AuthorizationController::class, 'mobileVerification'])->middleware('throttle:10,60');
+
+// Allow authenticated users to change phone before verification
+Route::post('change-phone', [UserController::class, 'changePhoneNumber'])->middleware(['auth:sanctum', 'throttle:5,60']);
 
 Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('logout', AuthController::class . '@logout');
     //authorization
     Route::controller(AuthorizationController::class)->group(function () {
         Route::get('authorization', 'authorization');
-        Route::post('verify-mobile', 'mobileVerification');
     });
     //User
     Route::apiResource('user', UserController::class);
