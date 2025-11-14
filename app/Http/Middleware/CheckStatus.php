@@ -26,8 +26,6 @@ class CheckStatus
             if ($emailVerified && $mobileVerified) {
                 return $next($request);
             } else {
-                Auth::logout(); // Log the user out
-
                 $message = 'You need to verify your account first.';
                 $verificationStatus = [
                     'email_verified' => $emailVerified,
