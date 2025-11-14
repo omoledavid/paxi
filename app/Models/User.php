@@ -44,7 +44,9 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'sPin' => 'integer',
-            'sVerCodeExpiry' => 'datetime'
+            'sVerCodeExpiry' => 'datetime',
+            'sMobileVerCodeExpiry' => 'datetime',
+            'sMobileVerified' => 'boolean'
         ];
     }
     public function getKey()

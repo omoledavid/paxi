@@ -6,6 +6,7 @@ use App\Enums\TransactionType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +54,7 @@ class UserController extends Controller
         $validatedData = $request->validate([
             'fname' => 'nullable|string',
             'lname' => 'nullable|string',
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', new NigerianPhone()],
             'state' => 'nullable|string',
         ]);
 
@@ -61,7 +62,7 @@ class UserController extends Controller
         $updateData = array_filter([
             'sFname' => $validatedData['fname'] ?? $user->sFname,
             'sLname' => $validatedData['lname'] ?? $user->sLname,
-            'sPhone' => $validatedData['phone'] ?? $user->sPhone,
+            'sPhone' => isset($validatedData['phone']) ? NigerianPhone::normalize($validatedData['phone']) : $user->sPhone,
             'sState' => $validatedData['state'] ?? $user->sState,
         ], fn($value) => !is_null($value)); // This prevents null values from overriding existing data
 
@@ -101,6 +102,34 @@ class UserController extends Controller
         } else {
             return $this->error('Incorrect Pin');
         }
+    }
+
+    public function changePhoneNumber(Request $request)
+    {
+        $user = auth()->user();
+
+        // Security check: Only allow change if mobile NOT yet verified
+        if ($user->sMobileVerified) {
+            return $this->error('Cannot change phone number after verification.', 403);
+        }
+
+        // Validate the new phone number
+        $validatedData = $request->validate([
+            'new_phone' => ['required', new NigerianPhone(), 'unique:subscribers,sPhone'],
+        ], [
+            'new_phone.unique' => 'This phone number is already in use.',
+        ]);
+
+        // Normalize the phone number
+        $normalizedPhone = NigerianPhone::normalize($validatedData['new_phone']);
+
+        // Update phone number and clear any existing verification codes
+        $user->sPhone = $normalizedPhone;
+        $user->sMobileVerCode = null;
+        $user->sMobileVerCodeExpiry = null;
+        $user->save();
+
+        return $this->ok('Phone number updated successfully. Please verify your new number.', new UserResource($user));
     }
 
 

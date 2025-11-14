@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ApiConfig;
 use App\Models\User;
 use App\Models\UserLogin;
+use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class AuthController extends Controller
             'fname' => 'required',
             'lname' => 'required',
             'sEmail' => 'required|email|unique:subscribers',
-            'sPhone' => 'required|unique:subscribers|',
+            'sPhone' => ['required', 'unique:subscribers', new NigerianPhone()],
             'password' => ['required', Password::defaults(), 'confirmed'],
             'state' => 'nullable',
             'pin' => 'nullable|min:4',
@@ -34,14 +35,14 @@ class AuthController extends Controller
             return $this->error($response, 400);
         }
         $apiKey = apiKeyGen();
-        $verCode = verificationCode(4);
+        $verCode = verificationCode(6);
         $userType = 0;
 
         $user = new User();
         $user->sFname = $validatedData['fname'];
         $user->sLname = $validatedData['lname'];
         $user->sEmail = $validatedData['sEmail'];
-        $user->sPhone = $validatedData['sPhone'];
+        $user->sPhone = NigerianPhone::normalize($validatedData['sPhone']);
         $user->sPass = passwordHash($validatedData['password']);
         $user->sState = $validatedData['state'];
         $user->sType = $userType;
@@ -72,7 +73,7 @@ class AuthController extends Controller
         $monnifyContract = getConfigValue($apiConfig, 'monifyContract');
 
         if ($monifyStatus == 'On') {
-            $this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
+            //$this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
         }
 
         //        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
@@ -97,24 +98,26 @@ class AuthController extends Controller
         // Retrieve the user by phone number
         $user = User::query()->where('sPhone', $request->sPhone)->orWhere('sEmail', $request->sPhone)->first();
 
-        // Check if user exists
+        // Check if user exists and verify password first
         if (!$user) {
-            return response()->json(['error' => 'User not found.'], 404);
-        }
-        if ($user->sRegStatus == 1) {
-            return $this->error(['Your account is blocked'], 401);
-        }
-        if ($user->sRegStatus == 2) {
-            return $this->error(['Your account is pending verification.'], 401);
-        }
-        if ($user->sRegStatus == 3) {
-            return $this->error(['Your account is not verified.'], 401);
+            return $this->error(['Invalid credentials.'], 401);
         }
 
-        // Verify the password
+        // Verify the password using constant-time comparison
         $hashPassword = passwordHash($password);
-        if ($hashPassword !== $user->sPass) {
-            return $this->error(['Wrong password.'], 401);
+        if (!hash_equals($hashPassword, $user->sPass)) {
+            return $this->error(['Invalid credentials.'], 401);
+        }
+
+        // Check account status after password verification
+        if ($user->sRegStatus == 1) {
+            return $this->error(['Your account is blocked'], 403);
+        }
+        if ($user->sRegStatus == 2) {
+            return $this->error(['Your account is pending verification.'], 403);
+        }
+        if ($user->sRegStatus == 3) {
+            return $this->error(['Your account is not verified.'], 403);
         }
 
         // Generate the token
@@ -170,7 +173,7 @@ class AuthController extends Controller
                     "currencyCode" => "NGN",
                     "contractCode" => $monnifyContract,
                     "customerEmail" => $user->sEmail,
-                    "bvn" => "22433145825",
+                    "bvn" => env('DEFAULT_BVN', ''),
                     "customerName" => $fullname,
                     "getAllAvailableBanks" => false,
                     "preferredBanks" => ["035"],

@@ -20,19 +20,23 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/login', 'login');
 })->middleware(['throttle:6,1']);
 Route::controller(ForgotPasswordController::class)->group(function () {
-    Route::post('password/email', 'sendResetCodeEmail');
-    Route::post('password/verify-code', 'verifyCode');
-    Route::post('password/reset', 'reset');
+    Route::post('password/email', 'sendResetCodeEmail')->middleware('throttle:3,60');
+    Route::post('password/verify-code', 'verifyCode')->middleware('throttle:10,60');
+    Route::post('password/reset', 'reset')->middleware('throttle:5,60');
 });
-Route::post('verify-email', [AuthorizationController::class, 'emailVerification']);
-Route::post('resend-verify/{type}', [AuthorizationController::class, 'sendVerifyCode']);
+Route::post('verify-email', [AuthorizationController::class, 'emailVerification'])->middleware('throttle:10,60');
+Route::post('resend-verify/{type}', [AuthorizationController::class, 'sendVerifyCode'])->middleware('throttle:3,60');
+Route::post('send-sms-code', [AuthorizationController::class, 'sendSmsVerificationCode'])->middleware('throttle:3,60');
+Route::post('verify-sms-code', [AuthorizationController::class, 'mobileVerification'])->middleware('throttle:10,60');
+
+// Allow authenticated users to change phone before verification
+Route::post('change-phone', [UserController::class, 'changePhoneNumber'])->middleware(['auth:sanctum', 'throttle:5,60']);
 
 Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('logout', AuthController::class . '@logout');
     //authorization
     Route::controller(AuthorizationController::class)->group(function () {
         Route::get('authorization', 'authorization');
-        Route::post('verify-mobile', 'mobileVerification');
     });
     //User
     Route::apiResource('user', UserController::class);
@@ -40,8 +44,8 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     //Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
     //Change password
-    Route::post('changepass', UserController::class. '@changePassword');
-    Route::post('changepin', UserController::class. '@changePin');
+    Route::post('changepass', UserController::class . '@changePassword');
+    Route::post('changepin', UserController::class . '@changePin');
     //Data
     Route::controller(DataController::class)->group(function () {
         Route::prefix('data')->group(function () {

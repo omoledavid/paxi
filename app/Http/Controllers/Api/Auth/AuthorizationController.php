@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -39,7 +40,7 @@ class AuthorizationController extends Controller
         $user = User::query()->where('sEmail', $validatedData['email'])->first();
 
 
-        $user->sVerCode = verificationCode(4);
+        $user->sVerCode = verificationCode(6);
         $user->sVerCodeExpiry = Carbon::now()->addMinutes(5);
         $user->updated_at = Carbon::now();
         $user->save();
@@ -52,60 +53,95 @@ class AuthorizationController extends Controller
     public function emailVerification(Request $request)
     {
         $request->validate([
-            'code' => 'required|exists:subscribers,sVerCode',
-            'email' => 'required|exists:subscribers,sEmail'
+            'code' => 'required',
+            'email' => 'required|email|exists:subscribers,sEmail'
         ]);
 
-        $user = User::query()->where('sEmail', $request->email)->first();
+        // Verify code AND email match in a single query
+        $user = User::query()
+            ->where('sEmail', $request->email)
+            ->where('sVerCode', $request->code)
+            ->first();
 
-        if ($user->sVerCode == $request->code) {
-            // Check if the verification code has expired
-            if ($user->sVerCodeExpiry && Carbon::now()->greaterThan($user->sVerCodeExpiry)) {
-                return $this->error('Verification code has expired. Please request a new one.');
-            }
-
-            $user->sVerCode = 0;
-            $user->sVerCodeExpiry = null;
-            $user->sRegStatus = 0;
-            $user->save();
-
-            return $this->ok('Email verified successfully');
+        if (!$user) {
+            return $this->error('Invalid verification code.');
         }
+
+        // Check if the verification code has expired
+        if ($user->sVerCodeExpiry && Carbon::now()->greaterThan($user->sVerCodeExpiry)) {
+            return $this->error('Verification code has expired. Please request a new one.');
+        }
+
+        $user->sVerCode = 0;
+        $user->sVerCodeExpiry = null;
+        $user->sRegStatus = 0;
+        $user->save();
+
+        return $this->ok('Email verified successfully');
+    }
+
+    public function sendSmsVerificationCode(Request $request)
+    {
+        $validatedData = $request->validate([
+            'phone' => ['required', new NigerianPhone(), 'exists:subscribers,sPhone'],
+        ], [
+            'phone.exists' => 'This phone number does not exist in our records.',
+        ]);
+
+        $user = User::query()->where('sPhone', $validatedData['phone'])->first();
+
+        // Generate 6-digit verification code
+        $code = verificationCode(6);
+
+        // Save code and expiry to database
+        $user->sMobileVerCode = $code;
+        $user->sMobileVerCodeExpiry = Carbon::now()->addMinutes(5);
+        $user->updated_at = Carbon::now();
+        $user->save();
+
+        // Send SMS via GatewayAPI
+        $smsSent = sendSmsVerificationCode($code, $user->sPhone);
+
+        if (!$smsSent) {
+            return $this->error('Failed to send SMS verification code. Please try again later.');
+        }
+
+        return $this->ok('SMS verification code has been sent to your phone', [
+            'phone' => $user->sPhone,
+        ]);
     }
 
     public function mobileVerification(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'code' => 'required',
+            'phone' => ['required', new NigerianPhone(), 'exists:subscribers,sPhone'],
+        ], [
+            'phone.exists' => 'This phone number does not exist in our records.',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'remark' => 'validation_error',
-                'status' => 'error',
-                'message' => ['error' => $validator->errors()->all()],
-            ]);
+        // Verify code AND phone match in a single query
+        $user = User::query()
+            ->where('sPhone', $request->phone)
+            ->where('sMobileVerCode', $request->code)
+            ->first();
+
+        if (!$user) {
+            return $this->error('Invalid verification code.');
         }
 
-        $user = auth()->user();
-        if ($user->ver_code == $request->code) {
-            $user->sv = 1;
-            $user->ver_code = null;
-            $user->ver_code_send_at = null;
-            $user->save();
-            $notify[] = 'Mobile verified successfully';
-            return response()->json([
-                'remark' => 'mobile_verified',
-                'status' => 'success',
-                'message' => ['success' => $notify],
-            ]);
+        // Check if the verification code has expired
+        if ($user->sMobileVerCodeExpiry && Carbon::now()->greaterThan($user->sMobileVerCodeExpiry)) {
+            return $this->error('Verification code has expired. Please request a new one.');
         }
-        $notify[] = 'Verification code doesn\'t match';
-        return response()->json([
-            'remark' => 'validation_error',
-            'status' => 'error',
-            'message' => ['error' => $notify],
-        ]);
+
+        // Mark mobile as verified and clear verification code
+        $user->sMobileVerCode = null;
+        $user->sMobileVerCodeExpiry = null;
+        $user->sMobileVerified = true;
+        $user->save();
+
+        return $this->ok('Mobile number verified successfully', new UserResource($user));
     }
 
 }

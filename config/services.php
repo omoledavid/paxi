@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'gatewayapi' => [
+        'token' => env('GATEWAYAPI_TOKEN'),
+        'sender' => env('GATEWAYAPI_SENDER', 'Paxi'),
+    ],
+
 ];
