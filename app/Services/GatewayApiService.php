@@ -18,7 +18,7 @@ class GatewayApiService
     }
 
     /**
-     * Send SMS message via GatewayAPI REST API
+     * Send SMS message via GatewayAPI REST API to a single recipient.
      *
      * @param string $phoneNumber Phone number in international format (234XXXXXXXXXX)
      * @param string $message SMS message content
@@ -26,21 +26,45 @@ class GatewayApiService
      */
     public function sendSms(string $phoneNumber, string $message): array
     {
+        return $this->sendBulkSms([$phoneNumber], $message);
+    }
+
+    /**
+     * Send SMS message via GatewayAPI REST API to multiple recipients.
+     *
+     * @param array<int, string|int> $recipients List of phone numbers
+     * @param string $message SMS message content
+     * @return array Response with success status and message
+     */
+    public function sendBulkSms(array $recipients, string $message): array
+    {
         try {
-            // Ensure phone number is in correct format (remove + if present)
-            $phoneNumber = ltrim($phoneNumber, '+');
+            $formattedRecipients = [];
+
+            foreach ($recipients as $recipient) {
+                $formatted = $this->formatPhoneNumber((string) $recipient);
+
+                if (!empty($formatted)) {
+                    $formattedRecipients[] = ['msisdn' => $formatted];
+                }
+            }
+
+            if (empty($formattedRecipients)) {
+                return [
+                    'success' => false,
+                    'message' => 'No valid recipients provided',
+                ];
+            }
 
             // Prepare the payload according to GatewayAPI REST API specification
             $payload = [
                 'sender' => $this->sender,
                 'message' => $message,
-                'recipients' => [
-                    ['msisdn' => $phoneNumber]
-                ]
+                'recipients' => $formattedRecipients,
             ];
 
             // Send request to GatewayAPI
-            $response = Http::withToken($this->apiToken)
+            $response = Http::withBasicAuth($this->apiToken, '')
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                 ])
@@ -51,7 +75,7 @@ class GatewayApiService
                 $data = $response->json();
 
                 Log::info('SMS sent successfully via GatewayAPI', [
-                    'phone' => $phoneNumber,
+                    'recipients' => $formattedRecipients,
                     'message_ids' => $data['ids'] ?? []
                 ]);
 
@@ -65,7 +89,7 @@ class GatewayApiService
             // Handle non-successful responses
             $errorData = $response->json();
             Log::error('GatewayAPI SMS failed', [
-                'phone' => $phoneNumber,
+                'recipients' => $formattedRecipients,
                 'status' => $response->status(),
                 'error' => $errorData
             ]);
@@ -78,7 +102,7 @@ class GatewayApiService
 
         } catch (\Exception $e) {
             Log::error('GatewayAPI SMS exception', [
-                'phone' => $phoneNumber,
+                'recipients' => $recipients,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -89,6 +113,27 @@ class GatewayApiService
                 'error' => $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Normalize a phone number into the expected msisdn format.
+     */
+    protected function formatPhoneNumber(string $phoneNumber): string
+    {
+        // Remove all non-numeric characters
+        $phoneNumber = preg_replace('/\D+/', '', $phoneNumber);
+
+        if (empty($phoneNumber)) {
+            return '';
+        }
+
+        // Convert Nigerian format from leading 0 to 234
+        if (str_starts_with($phoneNumber, '0') && strlen($phoneNumber) === 11) {
+            $phoneNumber = '234' . substr($phoneNumber, 1);
+        }
+
+        // Remove leading plus sign if still present
+        return ltrim($phoneNumber, '+');
     }
 
     /**
@@ -118,7 +163,7 @@ class GatewayApiService
     public function checkBalance(): array
     {
         try {
-            $response = Http::withToken($this->apiToken)
+            $response = Http::withBasicAuth($this->apiToken, '')
                 ->get($this->baseUrl . '/me');
 
             if ($response->successful()) {
