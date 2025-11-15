@@ -124,4 +124,17 @@ class GeneralController extends Controller
     {
         return $this->ok('success', []);
     }
+    public function settings()
+    {
+        return $this->ok('success', [
+            'facebook' => gs('facebook'),
+            'whatsapp' => gs('whatsapp'),
+            'twitter' => gs('twitter'),
+            'telegram' => gs('telegram'),
+            'instagram' => gs('instagram'),
+            'whatsapp_group' => gs('whatsappgroup'),
+            'email' => gs('email'),
+            'phone' => gs('phone'),
+        ]);
+    }
 }

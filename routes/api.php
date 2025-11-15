@@ -89,5 +89,6 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::post('vendor', 'vendor');
         Route::get('support', 'supportInfo');
         Route::post('support', 'support');
+        Route::get('settings', 'settings');
     });
 });
