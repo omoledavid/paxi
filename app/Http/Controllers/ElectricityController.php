@@ -34,6 +34,10 @@ class ElectricityController extends Controller
         //validate meter no
         $validateMeter = validateMeterNumber($validatedData['provider_id'], $validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
 
+        if ($validateMeter === null || !is_array($validateMeter)) {
+            return $this->error('Failed to validate meter number. Please try again.', 400);
+        }
+
         if ($validateMeter['status'] == 'fail' || $validateMeter['status'] == 'failed') {
             return $this->error($validateMeter['msg'], 400);
         }
@@ -84,10 +88,15 @@ class ElectricityController extends Controller
         ]);
         //validate meter no
         $validateMeter = validateMeterNumber($validatedData['provider_id'], $validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
+
+        if ($validateMeter === null || !is_array($validateMeter)) {
+            return $this->error('Failed to validate meter number. Please try again.', 400);
+        }
+
         if ($validateMeter['status'] == 'fail' || $validateMeter['status'] == 'failed') {
             return $this->error($validateMeter['msg'], 400);
         }
-        return $this->ok('Verified meter no',[
+        return $this->ok('Verified meter no', [
             'customer_name' => $validateMeter['Customer_Name'] ?? $validateMeter['name'],
             'meter_number' => $validatedData['meter_no'],
         ]);

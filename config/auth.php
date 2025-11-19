@@ -18,6 +18,8 @@ return [
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
+    'idle_timeout' => env('API_IDLE_TIMEOUT_MINUTES', 30),
+
     /*
     |--------------------------------------------------------------------------
     | Authentication Guards

@@ -11,10 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('transactions', function (Blueprint $table) {
-            $table->timestamp('created_at')->nullable();
-            $table->timestamp('updated_at')->nullable();
-        });
+        if (!Schema::hasColumn('transactions', 'created_at')) {
+            Schema::table('transactions', function (Blueprint $table) {
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (!Schema::hasColumn('transactions', 'updated_at')) {
+            Schema::table('transactions', function (Blueprint $table) {
+                $table->timestamp('updated_at')->nullable();
+            });
+        }
     }
 
     /**
@@ -22,8 +29,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('transactions', function (Blueprint $table) {
-            $table->dropColumn('created_at', 'updated_at');
-        });
+        $columns = collect(['created_at', 'updated_at'])->filter(fn ($column) => Schema::hasColumn('transactions', $column));
+
+        if ($columns->isNotEmpty()) {
+            Schema::table('transactions', function (Blueprint $table) use ($columns) {
+                $table->dropColumn($columns->all());
+            });
+        }
     }
 };

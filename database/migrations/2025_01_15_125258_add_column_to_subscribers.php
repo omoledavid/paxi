@@ -11,10 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('subscribers', function (Blueprint $table) {
-            $table->timestamp('created_at')->nullable();
-            $table->timestamp('updated_at')->nullable();
-        });
+        if (!Schema::hasColumn('subscribers', 'created_at')) {
+            Schema::table('subscribers', function (Blueprint $table) {
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (!Schema::hasColumn('subscribers', 'updated_at')) {
+            Schema::table('subscribers', function (Blueprint $table) {
+                $table->timestamp('updated_at')->nullable();
+            });
+        }
     }
 
     /**
@@ -22,8 +29,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('subscribers', function (Blueprint $table) {
-            $table->dropColumn(['created_at', 'updated_at']);
-        });
+        $columns = collect(['created_at', 'updated_at'])->filter(fn ($column) => Schema::hasColumn('subscribers', $column));
+
+        if ($columns->isNotEmpty()) {
+            Schema::table('subscribers', function (Blueprint $table) use ($columns) {
+                $table->dropColumn($columns->all());
+            });
+        }
     }
 };

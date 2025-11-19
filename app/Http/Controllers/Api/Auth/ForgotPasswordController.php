@@ -64,7 +64,7 @@ class ForgotPasswordController extends Controller
         }
 
         // Check if the code has expired (5 minutes)
-        if ($passwordReset->created_at->addMinutes(5)->isPast()) {
+        if ($passwordReset->created_at->addMinutes(1)->isPast()) {
             return $this->error('Verification code has expired. Please request a new one.');
         }
 

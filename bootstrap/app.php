@@ -16,12 +16,14 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->api(prepend: [
+            \App\Http\Middleware\EnsureRecentActivity::class,
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
-            'check.status' =>\App\Http\Middleware\CheckStatus::class,
+            'check.status' => \App\Http\Middleware\CheckStatus::class,
+            'token.recent' => \App\Http\Middleware\EnsureRecentActivity::class,
         ]);
 
         //

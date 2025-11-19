@@ -95,7 +95,7 @@ class AuthorizationController extends Controller
 
         // Save code and expiry to database
         $user->sMobileVerCode = $code;
-        $user->sMobileVerCodeExpiry = Carbon::now()->addMinutes(5);
+        $user->sMobileVerCodeExpiry = Carbon::now()->addMinutes(1);
         $user->updated_at = Carbon::now();
         $user->save();
 
