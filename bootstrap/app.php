@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'check.status' => \App\Http\Middleware\CheckStatus::class,
             'token.recent' => \App\Http\Middleware\EnsureRecentActivity::class,
+            'throttle.verification' => \App\Http\Middleware\ThrottleEmailVerification::class,
         ]);
 
         //

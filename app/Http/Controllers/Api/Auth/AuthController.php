@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Auth;
 
 
 use App\Http\Controllers\Controller;
+use App\Mail\AccountLocked;
 use App\Models\ApiConfig;
 use App\Models\User;
 use App\Models\UserLogin;
@@ -13,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -50,7 +52,7 @@ class AuthController extends Controller
         $user->sReferal = $validatedData['referral'];
         $user->sPin = $validatedData['pin'];
         $user->sVerCode = $verCode;
-        $user->sVerCodeExpiry = now()->addMinutes(5);
+        $user->sVerCodeExpiry = now()->addMinutes(1);
         $user->sRegStatus = 3;
         $user->save();
 
@@ -95,21 +97,36 @@ class AuthController extends Controller
         ]);
         $password = $request->password;
 
-        // Retrieve the user by phone number
         $user = User::query()->where('sPhone', $request->sPhone)->orWhere('sEmail', $request->sPhone)->first();
 
-        // Check if user exists and verify password first
         if (!$user) {
             return $this->error(['Invalid credentials.'], 401);
         }
 
-        // Verify the password using constant-time comparison
+        if ($user->isLocked()) {
+            $minutesUntilUnlock = max(1, $user->locked_until->diffInMinutes(now()));
+            return $this->error([
+                'Your account has been locked due to multiple failed login attempts. ' .
+                'Please reset your password or try again in ' . $minutesUntilUnlock . ' minutes.'
+            ], 423);
+        }
+
         $hashPassword = passwordHash($password);
         if (!hash_equals($hashPassword, $user->sPass)) {
+            $failedAttempts = $user->incrementFailedAttempts();
+
+            if ($failedAttempts >= 3) {
+                $user->lockAccount();
+                Mail::to($user->sEmail)->send(new AccountLocked($user));
+                return $this->error([
+                    'Your account has been locked due to multiple failed login attempts. ' .
+                    'Please reset your password or try again in 30 minutes.'
+                ], 423);
+            }
+
             return $this->error(['Invalid credentials.'], 401);
         }
 
-        // Check account status after password verification
         if ($user->sRegStatus == 1) {
             return $this->error(['Your account is blocked'], 403);
         }
@@ -120,10 +137,10 @@ class AuthController extends Controller
             return $this->error(['Your account is not verified.'], 403);
         }
 
-        // Generate the token
+        $user->unlockAccount();
+
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
 
-        // Return the response with the token and user details
         return $this->ok(
             'Authenticated',
             [

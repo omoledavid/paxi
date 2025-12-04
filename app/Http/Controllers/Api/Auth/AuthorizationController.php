@@ -22,7 +22,7 @@ class AuthorizationController extends Controller
         if ($user->sRegStatus === 3) {
             $verCode = $user->sVerCode;
             // Update expiry when resending
-            $user->sVerCodeExpiry = Carbon::now()->addMinutes(5);
+            $user->sVerCodeExpiry = Carbon::now()->addMinutes(1);
             $user->save();
             sendVerificationCode($verCode, $user->sEmail);
             return $this->ok('A verification code has been sent, kindly verify your account', new UserResource($user));
@@ -41,7 +41,7 @@ class AuthorizationController extends Controller
 
 
         $user->sVerCode = verificationCode(6);
-        $user->sVerCodeExpiry = Carbon::now()->addMinutes(5);
+        $user->sVerCodeExpiry = Carbon::now()->addMinutes(1);
         $user->updated_at = Carbon::now();
         $user->save();
         $code = $user->sVerCode;

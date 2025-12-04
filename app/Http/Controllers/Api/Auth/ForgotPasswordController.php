@@ -86,16 +86,16 @@ class ForgotPasswordController extends Controller
             return $this->error('Invalid verification code');
         }
 
-        // Check if the code has expired (5 minutes)
-        if ($reset->created_at->addMinutes(5)->isPast()) {
+        // Check if the code has expired (1 minute)
+        if ($reset->created_at->addMinutes(1)->isPast()) {
             $reset->delete();
             return $this->error('Verification code has expired. Please request a new one.');
         }
 
         $user = User::where('sEmail', $reset->email)->first();
         $user->sPass = passwordHash($request->password);
+        $user->unlockAccount();
         $user->save();
-
 
         $reset->delete();
 

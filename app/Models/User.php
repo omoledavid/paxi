@@ -46,8 +46,53 @@ class User extends Authenticatable
             'sPin' => 'integer',
             'sVerCodeExpiry' => 'datetime',
             'sMobileVerCodeExpiry' => 'datetime',
-            'sMobileVerified' => 'boolean'
+            'sMobileVerified' => 'boolean',
+            'sEmailVerificationAttempts' => 'integer',
+            'sEmailVerificationAttemptsResetAt' => 'datetime',
+            'sPasswordResetAttempts' => 'integer',
+            'sPasswordResetAttemptsResetAt' => 'datetime',
+            'failed_login_attempts' => 'integer',
+            'locked_at' => 'datetime',
+            'locked_until' => 'datetime',
         ];
+    }
+
+    public function incrementFailedAttempts(): int
+    {
+        $this->increment('failed_login_attempts');
+        $this->refresh();
+        return $this->failed_login_attempts;
+    }
+
+    public function lockAccount(): void
+    {
+        $this->update([
+            'locked_at' => now(),
+            'locked_until' => now()->addMinutes(30),
+        ]);
+    }
+
+    public function unlockAccount(): void
+    {
+        $this->update([
+            'failed_login_attempts' => 0,
+            'locked_at' => null,
+            'locked_until' => null,
+        ]);
+    }
+
+    public function isLocked(): bool
+    {
+        if (!$this->locked_until) {
+            return false;
+        }
+
+        if ($this->locked_until->isPast()) {
+            $this->unlockAccount();
+            return false;
+        }
+
+        return true;
     }
     public function getKey()
     {
