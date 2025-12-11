@@ -16,7 +16,8 @@ return new class extends Migration
         }
 
         Schema::create('subscribers', function (Blueprint $table) {
-            $table->bigIncrements('sId');
+            $table->engine = 'InnoDB';
+            $table->increments('sId');
             $table->string('sFname');
             $table->string('sLname');
             $table->string('sEmail');

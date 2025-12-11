@@ -16,8 +16,9 @@ return new class extends Migration
         }
 
         Schema::create('nellobytes_transactions', function (Blueprint $table) {
+            $table->engine = 'InnoDB';
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedInteger('user_id');
             $table->string('service_type'); // betting, epin, smile, spectranet
             $table->string('transaction_ref')->unique();
             $table->string('nellobytes_ref')->nullable();

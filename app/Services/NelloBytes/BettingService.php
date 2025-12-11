@@ -26,8 +26,7 @@ class BettingService extends NelloBytesClient
         float $amount,
         string $transactionRef,
         ?string $callbackUrl = null
-    ): array
-    {
+    ): array {
         $endpoint = config('nellobytes.endpoints.betting.fund');
 
         $params = [
