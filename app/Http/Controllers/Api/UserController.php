@@ -214,38 +214,29 @@ class UserController extends Controller
                 number_format($receiverNewBal, 2)
             );
 
-            // 8. Update balances
-            $user->sWallet = $senderNewBal;
-            $user->save();
-
-            $receiver->sWallet = $receiverNewBal;
-            $receiver->save();
-
-            // 9. Correct transaction logging with proper values
-            $senderTxRef = generateTransactionRef();
-            TransactionLog(
-                $user->sId,
-                $senderTxRef,
+            // 8. Update balances using wallet helpers (within the same transaction)
+            $senderResult = debitWallet(
+                $user,
+                $transferAmount,
                 TransactionType::WALLET_TRANSFER,
                 $senderDesc,
-                $transferAmount,
                 0,
-                $senderOldBal,
-                $senderNewBal,
-                0
+                0,
+                null,
+                false,
+                false
             );
 
-            $receiverTxRef = generateTransactionRef();
-            TransactionLog(
-                $receiver->sId,
-                $receiverTxRef,
+            $receiverResult = creditWallet(
+                $receiver,
+                $netAmount,
                 TransactionType::WALLET_TRANSFER,
                 $receiverDesc,
-                $netAmount,
                 0,
-                $receiverOldBal,
-                $receiverNewBal,
-                0
+                0,
+                null,
+                false,
+                false
             );
 
             // 10. Commit the transaction after everything is successful
@@ -253,8 +244,8 @@ class UserController extends Controller
 
             // 11. Return minimal information in the response
             return $this->ok('Transfer completed successfully', [
-                'balance' => $user->sWallet,
-                'transaction_id' => $senderTxRef
+                'balance' => $senderResult['user']->sWallet,
+                'transaction_id' => $senderResult['transaction_ref']
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
