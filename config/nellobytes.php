@@ -57,6 +57,14 @@ return [
             'buy' => 'APISpectranetV1.asp',
             'packages' => 'APISpectranetPackagesV2.asp',
         ],
+        'airtime' => [
+            'purchase' => 'APIAirtimeV1.asp',
+        ],
+        'data' => [
+            'buy' => 'APIDatabundleV1.asp',
+            'verify' => 'APIVerifyDataV1.asp',
+            'packages' => 'APIDataPackagesV2.asp',
+        ],
         'query' => 'APIQueryV1.asp',
         'cancel' => 'APICancelV1.asp',
     ],

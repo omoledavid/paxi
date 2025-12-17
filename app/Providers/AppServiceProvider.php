@@ -31,6 +31,19 @@ class AppServiceProvider extends ServiceProvider
             $this->app['config']->set('app.debug', true);
         }
 
+        try{
+            if(Schema::hasTable('apiconfigs')){
+                config([
+                    'nellobytes.base_url' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesBaseUrl'),
+                    'nellobytes.user_id' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesUserId'),
+                    'nellobytes.api_key' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesApi'),
+                ])
+            }
+
+        }catch(\Exception $e){
+            //log error
+        }
+
         // Force HTTPS in production
         if (App::environment('production')) {
             URL::forceScheme('https');
