@@ -8,5 +8,6 @@ enum NelloBytesServiceType: string
     case EPIN = 'epin';
     case SMILE = 'smile';
     case SPECTRANET = 'spectranet';
+    case DATA = 'data';
 }
 

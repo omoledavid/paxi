@@ -65,6 +65,11 @@ return [
             'verify' => 'APIVerifyDataV1.asp',
             'packages' => 'APIDataPackagesV2.asp',
         ],
+        'electricity' => [
+            'buy' => 'APIElectricityV1.asp',
+            'verify' => 'APIVerifyElectricityV1.asp',
+            'providers' => 'APIElectricityDiscosV2.asp',
+        ],
         'query' => 'APIQueryV1.asp',
         'cancel' => 'APICancelV1.asp',
     ],

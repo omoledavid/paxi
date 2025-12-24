@@ -2,8 +2,25 @@
 
 namespace App\Services\NelloBytes;
 
+use App\Models\NbDataPlan;
+use Illuminate\Database\Eloquent\Collection;
+
 class DataService extends NelloBytesClient
 {
+
+    /**
+     * Get available data plans
+     *
+     * @return array
+     * @throws \App\Exceptions\NelloBytesApiException
+     */
+    public function getDataplan(): Collection   
+    {
+        $dataplans = NbDataPlan::all();
+
+        return $dataplans;
+    }
+
     /**
      * Purchase data
      *

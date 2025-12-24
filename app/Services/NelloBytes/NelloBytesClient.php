@@ -85,7 +85,6 @@ class NelloBytesClient
                     'status_code' => $response->getStatusCode(),
                     'response' => $dataArray,
                 ]);
-
                 // Handle NelloBytes response format
                 // Some endpoints return status: 'success', others return data directly
                 if (isset($dataArray['status']) && $dataArray['status'] === 'success') {

@@ -206,3 +206,20 @@ function gs($key = null)
 
     return $general;
 }
+function networkName($code)
+{
+    $networks = [
+        '1' => 'MTN',
+        '2' => 'GLO',
+        '4' => 'Airtel',
+        '3' => '9mobile',
+    ];
+
+    return $networks[$code] ?? 'Unknown Network';
+}
+function getDataPlanPrice($dataCode)
+{
+    $dataPlan = \App\Models\NbDataPlan::where('plan_code', $dataCode)->first();
+
+    return $dataPlan ? (float) $dataPlan->userprice : 0.0;
+}

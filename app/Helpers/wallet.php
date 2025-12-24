@@ -2,8 +2,6 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
-use RuntimeException;
 
 if (!function_exists('getWalletBalance')) {
     /**
@@ -149,4 +147,3 @@ if (!function_exists('mutateWallet')) {
         return $wrapInTransaction ? DB::transaction($operation) : $operation();
     }
 }
-

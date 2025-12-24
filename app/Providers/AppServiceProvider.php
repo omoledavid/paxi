@@ -37,7 +37,7 @@ class AppServiceProvider extends ServiceProvider
                     'nellobytes.base_url' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesBaseUrl'),
                     'nellobytes.user_id' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesUserId'),
                     'nellobytes.api_key' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesApi'),
-                ])
+                ]);
             }
 
         }catch(\Exception $e){

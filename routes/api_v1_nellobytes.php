@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\V1\NelloBytes\BettingController;
+use App\Http\Controllers\Api\V1\NelloBytes\DataController;
+use App\Http\Controllers\Api\V1\NelloBytes\ElectricityController;
 use App\Http\Controllers\Api\V1\NelloBytes\EpinController;
 use App\Http\Controllers\Api\V1\NelloBytes\SmileController;
 use App\Http\Controllers\Api\V1\NelloBytes\SpectranetController;
@@ -42,6 +44,18 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::prefix('spectranet')->group(function () {
         Route::get('packages', [SpectranetController::class, 'getPackages']);
         Route::post('buy', [SpectranetController::class, 'buyBundle']);
+    });
+
+    //Data
+    Route::prefix('data')->group(function(){
+        Route::get('dataplan', [DataController::class, 'getDataplan']);
+        Route::post('buy', [DataController::class, 'buyData']);
+    });
+
+    //Electricity
+    Route::prefix('electricity')->group(function(){
+        Route::get('providers', [ElectricityController::class, 'getProviders']);
+        Route::post('buy', [ElectricityController::class, 'buyElectricity']);
     });
 });
 
