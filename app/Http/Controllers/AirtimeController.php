@@ -40,7 +40,7 @@ class AirtimeController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'network'       => 'required|exists:networks,id', // better: validate against actual network ID or code
+            'network'       => 'required|exists:networkid,id', // better: validate against actual network ID or code
             'type'          => 'required|in:VTU,Share and Sell',
             'phone_number'  => 'required|phone:NG', // or use a suitable phone validation rule
             'amount'        => 'required|numeric|min:50', // typical minimum airtime amount
