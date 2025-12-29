@@ -87,9 +87,9 @@ class DataController extends Controller
                     wrapInTransaction: false
                 );
                 $response = $this->dataService->purchaseData(
-                    $request->input('network_code'),
+                    $validatedData['network_id'],
                     $dataCode->planid,
-                    $request->input('phone_number'),
+                    $validatedData['phone_number'],
                     $transRef
                 );
                 $nellobytesRef = $response['reference'] ?? $response['ref'] ?? null;
