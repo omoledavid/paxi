@@ -175,7 +175,13 @@ class EpinController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            $statusCode = method_exists($e, 'getCode') && $e->getCode() > 0 ? $e->getCode() : 500;
+            $statusCode = 500;
+            if (method_exists($e, 'getCode')) {
+                $code = (int) $e->getCode();
+                if ($code >= 400 && $code < 600) {
+                    $statusCode = $code;
+                }
+            }
 
             return $this->error($e->getMessage(), $statusCode);
         }
@@ -222,9 +228,15 @@ class EpinController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            $statusCode = $e instanceof \RuntimeException
-                ? 400
-                : (method_exists($e, 'getCode') && $e->getCode() > 0 ? $e->getCode() : 500);
+            $statusCode = 500;
+            if ($e instanceof \RuntimeException) {
+                $statusCode = 400;
+            } elseif (method_exists($e, 'getCode')) {
+                $code = (int) $e->getCode();
+                if ($code >= 400 && $code < 600) {
+                    $statusCode = $code;
+                }
+            }
 
             return $this->error($e->getMessage(), $statusCode);
         }
