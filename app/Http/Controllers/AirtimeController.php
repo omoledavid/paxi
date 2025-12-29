@@ -40,11 +40,11 @@ class AirtimeController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'network'       => 'required|exists:networkid,networkid', // better: validate against actual network ID or code
-            'type'          => 'required|in:VTU,Share and Sell',
-            'phone_number'  => 'required', // or use a suitable phone validation rule
-            'amount'        => 'required|numeric|min:50', // typical minimum airtime amount
-            'pin'           => 'required|string|size:4', // assuming 4-digit PIN
+            'network' => 'required|exists:networkid,networkid', // better: validate against actual network ID or code
+            'type' => 'required|in:VTU,Share and Sell',
+            'phone_number' => 'required', // or use a suitable phone validation rule
+            'amount' => 'required|numeric|min:50', // typical minimum airtime amount
+            'pin' => 'required|string|size:4', // assuming 4-digit PIN
         ]);
 
         // Check transaction PIN first (for non-Nellobytes flow)
@@ -77,7 +77,7 @@ class AirtimeController extends Controller
                 user: $user,
                 amount: $validated['amount'],
                 serviceName: 'Airtime Purchase',
-                serviceDesc: "Purchased ₦{$validated['amount']} airtime for {$validated['phone_number']}",
+                serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']}",
                 transactionRef: $transactionRef,
                 wrapInTransaction: false,
             );
@@ -91,12 +91,12 @@ class AirtimeController extends Controller
         $response = Http::withToken($user->sApiKey)
             ->contentType('application/json')
             ->post(rtrim(env('FRONTEND_URL'), '/') . '/api838190/airtime/', [
-                'network'        => $validated['network'],
-                'amount'         => $validated['amount'],
-                'phone'          => $validated['phone_number'],
-                'ported_number'  => false,
-                'ref'            => $transactionRef,
-                'airtime_type'   => $validated['type'],
+                'network' => $validated['network'],
+                'amount' => $validated['amount'],
+                'phone' => $validated['phone_number'],
+                'ported_number' => false,
+                'ref' => $transactionRef,
+                'airtime_type' => $validated['type'],
             ]);
 
         $result = $response->json();
@@ -110,7 +110,7 @@ class AirtimeController extends Controller
         //     user: $user,
         //     amount: $validated['amount'],
         //     serviceName: 'Airtime Purchase',
-        //     serviceDesc: "Purchased ₦{$validated['amount']} airtime for {$validated['phone_number']}",
+        //     serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']}",
         //     transactionRef: $transactionRef,
         //     wrapInTransaction: false,
         // );
