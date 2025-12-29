@@ -9,5 +9,6 @@ enum NelloBytesServiceType: string
     case SMILE = 'smile';
     case SPECTRANET = 'spectranet';
     case DATA = 'data';
+    case ELECTRICITY = 'electricity';
 }
 

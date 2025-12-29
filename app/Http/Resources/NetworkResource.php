@@ -27,7 +27,7 @@ class NetworkResource extends JsonResource
                 'giftingStatus' => $this->giftingStatus,
                 'corporateStatus' => $this->corporateStatus,
                 'datapinStatus' => $this->datapinStatus,
-                'dataplans' => DataResource::collection($this->dataplans)
+                'dataplans' => DataResource::collection($this->whenLoaded('dataPlans'))
             ]
         ];
     }

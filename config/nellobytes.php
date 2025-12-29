@@ -66,7 +66,7 @@ return [
             'packages' => 'APIDataPackagesV2.asp',
         ],
         'electricity' => [
-            'buy' => 'APIElectricityV1.asp',
+            'buy' => 'APIVerifyElectricityV1.asp',
             'verify' => 'APIVerifyElectricityV1.asp',
             'providers' => 'APIElectricityDiscosV2.asp',
         ],

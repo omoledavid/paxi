@@ -23,27 +23,47 @@ class ElectricityService extends NelloBytesClient
      * @param string $meterNumber
      * @param float $amount
      * @param string $transactionRef
+     * @param string $meterType
      * @return array
      * @throws \App\Exceptions\NelloBytesApiException
      * @throws \App\Exceptions\NelloBytesInsufficientBalanceException
      */
     public function purchaseElectricity(
         string $providerCode,
+        string $meterType,
         string $meterNumber,
         float $amount,
         string $transactionRef,
         ?string $callbackUrl = null
     ): array {
-        $endpoint = config('nellobytes.endpoints.electricity.purchase');
+        $endpoint = config('nellobytes.endpoints.electricity.buy');
 
         $payload = [
-            'provider_code' => $providerCode,
-            'meter_number' => $meterNumber,
-            'amount' => $amount,
-            'transaction_ref' => $transactionRef,
+            'ElectricCompany' => $providerCode,
+            'MeterType' => $meterType,
+            'MeterNo' => $meterNumber,
+            'Amount' => $amount,
             'callback_url' => $callbackUrl,
         ];
 
         return $this->makeRequest($endpoint, $payload, 'POST');
+    }
+    public function VeryMeterNumber(string $providerCode, string $meterNumber, string $meterType): array
+    {
+        $endpoint = config('nellobytes.endpoints.electricity.verify');
+
+        $payload = [
+            'ElectricCompany' => $providerCode,
+            'MeterNo' => $meterNumber,
+            'MeterType' => $meterType,
+        ];
+
+        return $this->makeRequest($endpoint, $payload, 'POST');
+    }
+    public function getElectricityProviders(): array
+    {
+        $endpoint = config('nellobytes.endpoints.electricity.providers');
+
+        return $this->makeRequest($endpoint, [], 'GET');
     }
 }

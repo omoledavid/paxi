@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -17,7 +16,7 @@ return new class extends Migration
 
         Schema::create('nellobytes_transactions', function (Blueprint $table) {
             $table->engine = 'InnoDB';
-            $table->id();
+            $table->bigIncrements('id');
             $table->unsignedInteger('user_id');
             $table->string('service_type'); // betting, epin, smile, spectranet
             $table->string('transaction_ref')->unique();

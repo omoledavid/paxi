@@ -17,7 +17,7 @@ return new class extends Migration
 
         Schema::create('nb_data_plans', function (Blueprint $table) {
             $table->engine = 'InnoDB';
-            $table->increments('pId');
+            $table->bigIncrements('pId');
             $table->string('plan_code', 50)->nullable();
             $table->string('name');
             $table->decimal('userprice', 14, 2);

@@ -46,6 +46,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     //Change password
     Route::post('changepass', UserController::class . '@changePassword');
     Route::post('changepin', UserController::class . '@changePin');
+    
     //Data
     Route::controller(DataController::class)->group(function () {
         Route::prefix('data')->group(function () {

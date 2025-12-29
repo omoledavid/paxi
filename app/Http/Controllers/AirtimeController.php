@@ -127,10 +127,10 @@ class AirtimeController extends Controller
         static $enabled = null;
 
         if ($enabled === null) {
-            $config = ApiConfig::pluck('value', 'key');
+            $config = ApiConfig::all();
 
-            $enabled = $config['nellobytesStatus'] === 'On' &&
-                       $config['nellobytesAirtimeStatus'] === 'On';
+            $enabled = getConfigValue($config, 'nellobytesStatus') === 'On' &&
+                getConfigValue($config, 'nellobytesAirtimeStatus') === 'On';
         }
 
         return $enabled;
