@@ -145,7 +145,7 @@ class EpinController extends Controller
 
             // Send email
             try {
-                Mail::to($user->email)->send(new SendEpin($savedEpins, $transactionRef));
+                Mail::to($user->sEmail)->send(new SendEpin($savedEpins, $transactionRef));
             } catch (\Exception $e) {
                 Log::error('Failed to send EPIN email', ['error' => $e->getMessage()]);
             }
