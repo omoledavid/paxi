@@ -29,7 +29,8 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     // EPIN routes
     Route::prefix('epin')->group(function () {
         Route::get('discounts', [EpinController::class, 'getDiscounts']);
-        Route::post('print', [EpinController::class, 'printCard']);
+        Route::get('history', [EpinController::class, 'history']);
+        Route::post('buy', [EpinController::class, 'printCard']);
         Route::get('query', [EpinController::class, 'query']);
     });
 
@@ -47,13 +48,13 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     });
 
     //Data
-    Route::prefix('data')->group(function(){
+    Route::prefix('data')->group(function () {
         Route::get('dataplan', [DataController::class, 'getDataplan']);
         Route::post('buy', [DataController::class, 'buyData']);
     });
 
     //Electricity
-    Route::prefix('electricity')->group(function(){
+    Route::prefix('electricity')->group(function () {
         Route::get('providers', [ElectricityController::class, 'getProviders']);
         Route::post('buy', [ElectricityController::class, 'buyElectricity']);
     });

@@ -6,9 +6,12 @@ use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\NelloBytes\PrintEpinRequest;
+use App\Models\Epin;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\EpinService;
 use App\Traits\ApiResponses;
+use App\Mail\SendEpin;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -118,7 +121,34 @@ class EpinController extends Controller
                 'response_payload' => $result,
             ]);
 
+            // Save EPINs to database
+            $savedEpins = [];
+            if (isset($result['TXN_EPIN']) && is_array($result['TXN_EPIN'])) {
+                foreach ($result['TXN_EPIN'] as $pinData) {
+                    $epinData = [
+                        'user_id' => $user->sId,
+                        'transaction_id' => $transaction->id,
+                        'network' => $validated['mobile_network'],
+                        'amount' => $validated['value'],
+                        'pin_code' => $pinData['pin'] ?? $pinData['CardPin'] ?? 'UNKNOWN',
+                        'serial_number' => $pinData['sno'] ?? $pinData['SerialNo'] ?? null,
+                        'expiry_date' => isset($pinData['expiry']) ? \Carbon\Carbon::parse($pinData['expiry']) : null,
+                        'status' => 'unused',
+                        'description' => "Purchased {$validated['mobile_network']} {$validated['value']}",
+                    ];
+                    Epin::create($epinData);
+                    $savedEpins[] = $epinData;
+                }
+            }
+
             DB::commit();
+
+            // Send email
+            try {
+                Mail::to($user->email)->send(new SendEpin($savedEpins, $transactionRef));
+            } catch (\Exception $e) {
+                Log::error('Failed to send EPIN email', ['error' => $e->getMessage()]);
+            }
 
             return $this->ok('EPIN card printed successfully', [
                 'transaction_ref' => $transactionRef,
@@ -198,6 +228,24 @@ class EpinController extends Controller
 
             return $this->error($e->getMessage(), $statusCode);
         }
+    }
+
+    /**
+     * Get EPIN purchase history
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function history(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $limit = $request->input('limit', 20);
+
+        $epins = Epin::where('user_id', $user->sId)
+            ->latest()
+            ->paginate($limit);
+
+        return $this->ok('EPIN history retrieved', $epins);
     }
 }
 
