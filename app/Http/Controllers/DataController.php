@@ -59,6 +59,7 @@ class DataController extends Controller
             return $this->error('incorrect pin');
         }
         $dataCode = DataPlan::find($validatedData['data_plan_id']);
+        $networkID = '0'.$validatedData['network_id'];
         if($dataCode){
             $amount = $dataCode->price;
         }else{
@@ -87,7 +88,7 @@ class DataController extends Controller
                     wrapInTransaction: false
                 );
                 $response = $this->dataService->purchaseData(
-                    $validatedData['network_id'],
+                    $networkID,
                     $dataCode->planid,
                     $validatedData['phone_number'],
                     $transRef
