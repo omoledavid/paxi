@@ -60,8 +60,9 @@ class AirtimeController extends Controller
 
         // Route to Nellobytes if enabled
         if ($this->isNellobytesEnabled()) {
+            $networkID = '0' . $validated['network'];
             $result = $this->airtimeService->purchaseAirtime(
-                networkCode: $validated['network'],
+                networkCode: $networkID,
                 phoneNumber: $validated['phone_number'],
                 amount: $validated['amount'],
                 transactionRef: $transactionRef,
