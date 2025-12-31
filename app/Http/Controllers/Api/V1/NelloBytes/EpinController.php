@@ -6,6 +6,7 @@ use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\NelloBytes\PrintEpinRequest;
+use App\Models\ApiConfig;
 use App\Models\Epin;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\EpinService;
@@ -59,6 +60,10 @@ class EpinController extends Controller
     {
         $user = auth()->user();
         $validated = $request->validated();
+
+        if (!$this->isNellobytesEnabled()) {
+            return $this->error('NelloBytes is currently disabled', 400);
+        }
 
         // Verify PIN
         if ($user->sPin != $validated['pin']) {
@@ -255,9 +260,36 @@ class EpinController extends Controller
 
         $epins = Epin::where('user_id', $user->sId)
             ->latest()
-            ->paginate($limit);
+            ->paginate($limit)
+            ->through(function ($epin) {
+                $networks = [
+                    '01' => 'MTN',
+                    '02' => 'GLO',
+                    '04' => 'Airtel',
+                    '03' => '9mobile',
+                ];
+
+                if (isset($networks[$epin->network])) {
+                    $epin->network = $networks[$epin->network];
+                }
+
+                return $epin;
+            });
 
         return $this->ok('EPIN history retrieved', $epins);
+    }
+    private function isNellobytesEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'nellobytesStatus') === 'On' &&
+                getConfigValue($config, 'nellobytesRechargeStatus') === 'On';
+        }
+
+        return $enabled;
     }
 }
 

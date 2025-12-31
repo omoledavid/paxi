@@ -75,8 +75,17 @@
                 </thead>
                 <tbody>
                     @foreach($epins as $epin)
+                        @php
+                            $networks = [
+                                '01' => 'MTN',
+                                '02' => 'GLO',
+                                '04' => 'Airtel',
+                                '03' => '9mobile',
+                            ];
+                            $networkName = $networks[$epin['network']] ?? $epin['network'];
+                        @endphp
                         <tr>
-                            <td>{{ $epin['network'] }}</td>
+                            <td>{{ $networkName }}</td>
                             <td>{{ number_format($epin['amount'], 2) }}</td>
                             <td style="font-weight: bold; letter-spacing: 1px;">{{ $epin['pin_code'] }}</td>
                             <td>{{ $epin['serial_number'] }}</td>

@@ -67,17 +67,17 @@ class DataController extends Controller
         }
         //ref code
         $transRef = generateTransactionRef();
-        $transaction = NelloBytesTransaction::create([
-            'user_id' => $user->sId,
-            'service_type' => NelloBytesServiceType::DATA,
-            'transaction_ref' => $transRef,
-            'amount' => $amount,
-            'status' => TransactionStatus::PENDING,
-            'request_payload' => $validatedData,
-        ]);
-
+        
         if ($this->isNellobytesEnabled()) {
             DB::beginTransaction();
+            $transaction = NelloBytesTransaction::create([
+                'user_id' => $user->sId,
+                'service_type' => NelloBytesServiceType::DATA,
+                'transaction_ref' => $transRef,
+                'amount' => $amount,
+                'status' => TransactionStatus::PENDING,
+                'request_payload' => $validatedData,
+            ]);
             try {
                 $debit = debitWallet(
                     user: $user,
