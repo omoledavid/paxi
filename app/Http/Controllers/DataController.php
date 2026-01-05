@@ -11,6 +11,7 @@ use App\Models\DataPlan;
 use App\Models\NelloBytesTransaction;
 use App\Models\Network;
 use App\Services\NelloBytes\DataService;
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\JsonResponse;
@@ -21,10 +22,14 @@ class DataController extends Controller
 {
     use ApiResponses;
     protected DataService $dataService;
+    protected NelloBytesTransactionService $nelloBytesTransactionService;
 
-    public function __construct(DataService $dataService)
-    {
+    public function __construct(
+        DataService $dataService,
+        NelloBytesTransactionService $nelloBytesTransactionService
+    ) {
         $this->dataService = $dataService;
+        $this->nelloBytesTransactionService = $nelloBytesTransactionService;
     }
 
     public function data(): JsonResponse
@@ -59,15 +64,15 @@ class DataController extends Controller
             return $this->error('incorrect pin');
         }
         $dataCode = DataPlan::find($validatedData['data_plan_id']);
-        $networkID = '0'.$validatedData['network_id'];
-        if($dataCode){
+        $networkID = '0' . $validatedData['network_id'];
+        if ($dataCode) {
             $amount = $dataCode->price;
-        }else{
+        } else {
             return $this->error('data plan not found');
         }
         //ref code
         $transRef = generateTransactionRef();
-        
+
         if ($this->isNellobytesEnabled()) {
             DB::beginTransaction();
             $transaction = NelloBytesTransaction::create([
@@ -82,26 +87,40 @@ class DataController extends Controller
                 $debit = debitWallet(
                     user: $user,
                     amount: $amount,
-                    serviceName: 'NelloBytes Data Purchase',
-                    serviceDesc: 'Purchase of data plan via NelloBytes',
+                    serviceName: ' Data Purchase',
+                    serviceDesc: 'Purchase of data plan',
                     transactionRef: $transRef,
                     wrapInTransaction: false
                 );
+
                 $response = $this->dataService->purchaseData(
                     $networkID,
                     $dataCode->planid,
                     $validatedData['phone_number'],
                     $transRef
                 );
-                $nellobytesRef = $response['reference'] ?? $response['ref'] ?? null;
-                $transaction->update([
-                    'status' => TransactionStatus::SUCCESS,
-                    'nellobytes_ref' => $nellobytesRef,
-                    'response_payload' => $response,
-                ]);
+
+                // Use the new service to handle response and potential refunds
+                $this->nelloBytesTransactionService->handleProviderResponse(
+                    $response,
+                    $transaction,
+                    $user,
+                    $amount
+                );
+
                 DB::commit();
 
                 return $this->ok('Data purchase successful', $response);
+
+            } catch (\App\Exceptions\NelloBytesTransactionFailedException $e) {
+                // Determine HTTP status code based on error message/type if needed
+                // For business logic failures (like invalid number), we often return 400 or 422
+                // But NelloBytesTransactionService already refunded the user.
+                // We COMMIT the transaction so the 'FAILED' status and Refund are saved.
+                DB::commit();
+
+                return $this->error($e->getMessage(), 400, $e->getApiResponse());
+
             } catch (\Exception $e) {
                 DB::rollBack();
                 \Log::error('Data purchase failed', [

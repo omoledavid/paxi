@@ -10,5 +10,6 @@ enum NelloBytesServiceType: string
     case SPECTRANET = 'spectranet';
     case DATA = 'data';
     case ELECTRICITY = 'electricity';
+    case CABLETV = 'cabletv';
 }
 

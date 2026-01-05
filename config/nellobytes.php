@@ -70,6 +70,9 @@ return [
             'verify' => 'APIVerifyElectricityV1.asp',
             'providers' => 'APIElectricityDiscosV2.asp',
         ],
+        'cabletv' => [
+            'buy' => 'APICableTVV1.asp',
+        ],
         'query' => 'APIQueryV1.asp',
         'cancel' => 'APICancelV1.asp',
     ],

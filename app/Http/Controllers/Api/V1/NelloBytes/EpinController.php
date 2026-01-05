@@ -91,6 +91,13 @@ class EpinController extends Controller
 
         DB::beginTransaction();
         try {
+            $networks = [
+                '01' => 'MTN',
+                '02' => 'GLO',
+                '04' => 'Airtel',
+                '03' => '9mobile',
+            ];
+
             // Debit wallet before making the purchase call
             $debit = debitWallet(
                 $user,
@@ -100,7 +107,7 @@ class EpinController extends Controller
                     'EPIN %s x %s for %s',
                     number_format($validated['value'], 2),
                     $validated['quantity'],
-                    $validated['mobile_network']
+                    $networks[$validated['mobile_network']] ?? $validated['mobile_network']
                 ),
                 0,
                 0,

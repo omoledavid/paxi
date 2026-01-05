@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Services\NelloBytes;
+
+class CableTvService extends NelloBytesClient
+{
+    public function purchaseCableTv(string $CableTV, string $Package, string $smartCardNo, string $PhoneNo, string $RequestID = null, string $CallBackURL = null): array
+    {
+        $endpoint = config('nellobytes.endpoints.cabletv.buy');
+
+        $params = [
+            'CableTV' => $CableTV,
+            'Package' => $Package,
+            'SmartCardNo' => $smartCardNo,
+            'PhoneNo' => $PhoneNo,
+            'RequestID' => $RequestID,
+        ];
+
+        if (!empty($CallBackURL)) {
+            $params['CallBackURL'] = $CallBackURL;
+        }
+
+        return $this->makeRequest($endpoint, $params, 'POST');
+    }
+}

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CableTv extends Model
 {
+    protected $primaryKey = 'cId';
     protected $table = 'cableid';
 
     public function plans()
