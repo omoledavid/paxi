@@ -72,6 +72,7 @@ return [
         ],
         'cabletv' => [
             'buy' => 'APICableTVV1.asp',
+            'plans' => 'APICableTVPackagesV2.asp',
         ],
         'query' => 'APIQueryV1.asp',
         'cancel' => 'APICancelV1.asp',

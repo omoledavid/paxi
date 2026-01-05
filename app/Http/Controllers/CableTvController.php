@@ -32,13 +32,30 @@ class CableTvController extends Controller
     {
         $cableTv = CableTv::with('plans')->get();
         if ($this->isNellobytesEnabled()) {
-            $cableTv = $cableTv->map(function ($cableTv) {
-                $cableTv->plans = $cableTv->plans->filter(function ($plan) {
-                    return !is_numeric($plan->planid);
-                });
+            $response = $this->cableTvService->getPlans();
 
-                return $cableTv;
-            });
+            if (isset($response['TV_ID'])) {
+                $cableTv = collect($response['TV_ID'])->map(function ($items, $providerName) {
+                    // Items is an array of provider details, usually just one entry
+                    $info = $items[0] ?? [];
+                    $products = $info['PRODUCT'] ?? [];
+
+                    return (object) [
+                        'cId' => $info['ID'] ?? strtolower($providerName),
+                        'provider' => $providerName,
+                        'providerStatus' => 'Active',
+                        'plans' => collect($products)->map(function ($plan) {
+                            return (object) [
+                                'cpId' => $plan['PACKAGE_ID'],
+                                'name' => $plan['PACKAGE_NAME'],
+                                'userprice' => $plan['PACKAGE_AMOUNT'],
+                                'day' => '30', // Default value or derived if available
+                                'planid' => $plan['PACKAGE_ID'] // ensure compatibility if used elsewhere
+                            ];
+                        }),
+                    ];
+                })->values();
+            }
         }
 
         return $this->ok('success', [
@@ -138,33 +155,34 @@ class CableTvController extends Controller
         DB::beginTransaction();
         try {
 
-            $cableTv = CableTv::find($validatedData['provider_id']);
-            $cableTvPlan = $cableTv->plans->where('cpId', $validatedData['plan_id'])->first();
+            $cableTv = $validatedData['provider_id'];
+            $cableTvPlan = $validatedData['plan_id'];
+            $amount = $validatedData['price'];
             $transaction = NelloBytesTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => NelloBytesServiceType::CABLETV,
                 'transaction_ref' => $transRef,
-                'amount' => $cableTvPlan->userprice,
+                'amount' => $amount,
                 'status' => TransactionStatus::PENDING,
                 'request_payload' => $validatedData,
             ]);
             $debit = debitWallet(
                 user: $user,
-                amount: $cableTvPlan->userprice,
+                amount: $amount,
                 serviceName: 'CableTV Purchase',
                 serviceDesc: 'Purchase of cabletv plan',
                 transactionRef: $transRef,
                 wrapInTransaction: false
             );
-            $response = $this->cableTvService->purchaseCableTv(CableTV: strtolower($cableTv->provider), Package: $cableTvPlan->planid, smartCardNo: $validatedData['iuc_no'], PhoneNo: $validatedData['customer_no']);
+            $response = $this->cableTvService->purchaseCableTv(CableTV: strtolower($cableTv), Package: $cableTvPlan, smartCardNo: $validatedData['iuc_no'], PhoneNo: $validatedData['customer_no']);
 
             // Use the new service to handle response and potential refunds
-                $this->nelloBytesTransactionService->handleProviderResponse(
-                    $response,
-                    $transaction,
-                    $user,
-                    $cableTvPlan->userprice
-                );
+            $this->nelloBytesTransactionService->handleProviderResponse(
+                $response,
+                $transaction,
+                $user,
+                $amount
+            );
             $nellobytesRef = $response['reference'] ?? $response['ref'] ?? null;
             $transaction->update([
                 'status' => TransactionStatus::SUCCESS,
@@ -183,7 +201,7 @@ class CableTvController extends Controller
 
             return $this->error('CableTV purchase failed', 500, $e->getMessage());
         }
-        
+
     }
     private function isNellobytesEnabled(): bool
     {

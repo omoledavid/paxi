@@ -22,7 +22,11 @@ class CableTvResource extends JsonResource
                 'providerStatus' => $this->providerStatus,
             ],
             'relationships' => [
-                'plan' => CableTVPlanResource::collection($this->whenLoaded('plans')),
+                'plan' => CableTVPlanResource::collection(
+                    $this->resource instanceof \Illuminate\Database\Eloquent\Model
+                    ? $this->whenLoaded('plans')
+                    : $this->plans
+                ),
             ]
         ];
     }

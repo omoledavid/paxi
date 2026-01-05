@@ -22,4 +22,11 @@ class CableTvService extends NelloBytesClient
 
         return $this->makeRequest($endpoint, $params, 'POST');
     }
+
+    public function getPlans(): array
+    {
+        $endpoint = config('nellobytes.endpoints.cabletv.plans');
+
+        return $this->makeRequest($endpoint, [], 'GET');
+    }
 }

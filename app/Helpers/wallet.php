@@ -60,7 +60,7 @@ if (!function_exists('creditWallet')) {
         float $amount,
         string $serviceName,
         string $serviceDesc,
-        int $status = 0,
+        int $status = 1,
         float $profit = 0,
         ?string $transactionRef = null,
         bool $wrapInTransaction = true,
@@ -99,6 +99,8 @@ if (!function_exists('mutateWallet')) {
         bool $wrapInTransaction = true,
         bool $lockUser = true
     ): array {
+        $amount = round($amount, 2);
+
         if ($amount <= 0) {
             throw new InvalidArgumentException('Amount must be greater than zero');
         }

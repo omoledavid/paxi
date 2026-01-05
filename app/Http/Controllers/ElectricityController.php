@@ -10,6 +10,7 @@ use App\Models\ApiConfig;
 use App\Models\EProvider;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\ElectricityService;
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
@@ -19,39 +20,41 @@ class ElectricityController extends Controller
 {
     use ApiResponses;
     protected ElectricityService $electricityService;
+    protected NelloBytesTransactionService $nelloBytesTransactionService;
 
-    public function __construct(ElectricityService $electricityService)
+    public function __construct(ElectricityService $electricityService, NelloBytesTransactionService $nelloBytesTransactionService)
     {
         $this->electricityService = $electricityService;
+        $this->nelloBytesTransactionService = $nelloBytesTransactionService;
     }
 
     public function index()
-{
-    if ($this->isNellobytesEnabled()) {
-        $response = $this->electricityService->getElectricityProviders();
+    {
+        if ($this->isNellobytesEnabled()) {
+            $response = $this->electricityService->getElectricityProviders();
 
-        if (!$response || !isset($response['ELECTRIC_COMPANY'])) {
-            return $this->error('Failed to fetch electricity providers', 400);
+            if (!$response || !isset($response['ELECTRIC_COMPANY'])) {
+                return $this->error('Failed to fetch electricity providers', 400);
+            }
+
+            // Flatten: extract the single object from each disco's array
+            $providers = collect($response['ELECTRIC_COMPANY'])
+                ->flatten(1) // turns [[obj], [obj], ...] → [obj, obj, ...]
+                ->values(); // re-index numerically
+
+            return $this->ok('success', [
+                'provider' => ElectricityCompanyResource::collection($providers),
+                'meter_type' => ['Prepaid', 'Postpaid']
+            ]);
         }
 
-        // Flatten: extract the single object from each disco's array
-        $providers = collect($response['ELECTRIC_COMPANY'])
-            ->flatten(1) // turns [[obj], [obj], ...] → [obj, obj, ...]
-            ->values(); // re-index numerically
-
+        // Fallback to your local DB
+        $electricity = EProvider::query()->get();
         return $this->ok('success', [
-            'provider' => ElectricityCompanyResource::collection($providers),
+            'provider' => ElectricityResource::collection($electricity),
             'meter_type' => ['Prepaid', 'Postpaid']
         ]);
     }
-
-    // Fallback to your local DB
-    $electricity = EProvider::query()->get();
-    return $this->ok('success', [
-        'provider' => ElectricityResource::collection($electricity),
-        'meter_type' => ['Prepaid', 'Postpaid']
-    ]);
-}
 
     public function purchaseElectricity(Request $request)
     {
@@ -159,17 +162,18 @@ class ElectricityController extends Controller
         // purchase data using nellobytes
         DB::beginTransaction();
         try {
+            $amount = $validatedData['amount'];
             $transaction = NelloBytesTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => NelloBytesServiceType::ELECTRICITY,
                 'transaction_ref' => $transRef,
-                'amount' => $validatedData['amount'],
+                'amount' => $amount,
                 'status' => TransactionStatus::PENDING,
                 'request_payload' => $validatedData,
             ]);
             $debit = debitWallet(
                 user: $user,
-                amount: $validatedData['amount'],
+                amount: $amount,
                 serviceName: 'NelloBytes Electricity Purchase',
                 serviceDesc: 'Purchase of electricity plan via NelloBytes',
                 transactionRef: $transRef,
@@ -182,6 +186,27 @@ class ElectricityController extends Controller
                 'nellobytes_ref' => $nellobytesRef,
                 'response_payload' => $response,
             ]);
+
+            $this->nelloBytesTransactionService->handleProviderResponse(
+                $response,
+                $transaction,
+                $user,
+                $amount
+            );
+
+            // Check if token exists in response and send email
+            if (isset($response['metertoken']) || ($validatedData['meter_type'] === 'prepaid' && isset($response['metertoken']))) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
+                        $response['metertoken'],
+                        $amount,
+                        $validatedData['meter_no'],
+                        $transRef
+                    ));
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send electricity token email', ['error' => $e->getMessage()]);
+                }
+            }
             DB::commit();
 
             return $this->ok('Electricity purchase successful', $response);

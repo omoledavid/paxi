@@ -7,8 +7,10 @@ use App\Enums\TransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\NelloBytes\FundBettingRequest;
 use App\Http\Requests\NelloBytes\VerifyBettingCustomerRequest;
+use App\Models\ApiConfig;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\BettingService;
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -20,10 +22,12 @@ class BettingController extends Controller
     use ApiResponses;
 
     protected BettingService $bettingService;
+    protected NelloBytesTransactionService $nelloBytesTransactionService;
 
-    public function __construct(BettingService $bettingService)
+    public function __construct(BettingService $bettingService, NelloBytesTransactionService $nelloBytesTransactionService)
     {
         $this->bettingService = $bettingService;
+        $this->nelloBytesTransactionService = $nelloBytesTransactionService;
     }
 
     /**
@@ -84,6 +88,9 @@ class BettingController extends Controller
      */
     public function fund(FundBettingRequest $request): JsonResponse
     {
+        if(!$this->isNellobytesEnabled()){
+            return $this->error('Betting Service currently disabled');
+        }
         $user = auth()->user();
         $validated = $request->validated();
 
@@ -144,6 +151,12 @@ class BettingController extends Controller
                 'nellobytes_ref' => $nellobytesRef,
                 'response_payload' => $result,
             ]);
+             $this->nelloBytesTransactionService->handleProviderResponse(
+                    $result,
+                    $transaction,
+                    $user,
+                    $validated['amount']
+                );
 
             DB::commit();
 
@@ -178,6 +191,19 @@ class BettingController extends Controller
 
             return $this->error($e->getMessage(), $statusCode);
         }
+    }
+    private function isNellobytesEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'nellobytesStatus') === 'On' &&
+                getConfigValue($config, 'nellobytesBettingStatus') === 'On';
+        }
+
+        return $enabled;
     }
 }
 

@@ -66,7 +66,7 @@ class DataController extends Controller
         $dataCode = DataPlan::find($validatedData['data_plan_id']);
         $networkID = '0' . $validatedData['network_id'];
         if ($dataCode) {
-            $amount = $dataCode->price;
+            $amount = $dataCode->userprice;
         } else {
             return $this->error('data plan not found');
         }
@@ -84,7 +84,7 @@ class DataController extends Controller
                 'request_payload' => $validatedData,
             ]);
             try {
-                $debit = debitWallet(
+                debitWallet(
                     user: $user,
                     amount: $amount,
                     serviceName: ' Data Purchase',
