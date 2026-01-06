@@ -46,7 +46,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     //Change password
     Route::post('changepass', UserController::class . '@changePassword');
     Route::post('changepin', UserController::class . '@changePin');
-    
+
     //Data
     Route::controller(DataController::class)->group(function () {
         Route::prefix('data')->group(function () {
@@ -59,6 +59,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::prefix('electricity')->group(function () {
             Route::get('/', 'index');
             Route::post('/', 'purchaseElectricity');
+            Route::get('/history', 'purchaseHistory');
             Route::post('/verify-meter', 'verifyMeterNo');
         });
     });

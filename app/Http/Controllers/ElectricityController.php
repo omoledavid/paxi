@@ -157,6 +157,35 @@ class ElectricityController extends Controller
             'meter_number' => $validatedData['meter_no'],
         ]);
     }
+
+    public function purchaseHistory(Request $request)
+    {
+        $user = auth()->user();
+
+        // Retrieve transactions
+        $transactions = NelloBytesTransaction::query()
+            ->where('user_id', $user->sId)
+            ->where('service_type', NelloBytesServiceType::ELECTRICITY)
+            ->latest()
+            ->paginate(20);
+
+        $transactions->getCollection()->transform(function ($transaction) {
+            $responsePayload = $transaction->response_payload ?? [];
+            $requestPayload = $transaction->request_payload ?? [];
+
+            return [
+                'orderid' => $transaction->transaction_ref,
+                'statuscode' => $transaction->status === TransactionStatus::SUCCESS ? '100' : '0',
+                'status' => strtoupper($transaction->status->value),
+                'meterno' => $requestPayload['meter_no'] ?? null,
+                'metertoken' => $responsePayload['metertoken'] ?? null,
+                'amount' => $transaction->amount,
+                'date' => $transaction->created_at,
+            ];
+        });
+
+        return $this->ok('Electricity purchase history', $transactions);
+    }
     private function purchaseElectricityNellobytes($validatedData, $meterType, $transRef, $user)
     {
         // purchase data using nellobytes
