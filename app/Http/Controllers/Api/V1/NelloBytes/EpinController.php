@@ -73,24 +73,34 @@ class EpinController extends Controller
         // Generate transaction reference (used as RequestID)
         $transactionRef = generateTransactionRef();
 
-        $amount = (float) ($validated['value'] * $validated['quantity']);
+        $originalAmount = (float) ($validated['value'] * $validated['quantity']);
 
         // Remove sensitive data from request payload before storing
         $requestPayload = $validated;
         unset($requestPayload['pin']);
 
-        // Create transaction record
-        $transaction = NelloBytesTransaction::create([
-            'user_id' => $user->sId,
-            'service_type' => NelloBytesServiceType::EPIN,
-            'transaction_ref' => $transactionRef,
-            'amount' => $amount,
-            'status' => TransactionStatus::PENDING,
-            'request_payload' => $requestPayload,
-        ]);
-
         DB::beginTransaction();
         try {
+            // Fetch discounts first
+            $discounts = $this->epinService->getDiscounts();
+
+            // Apply discount to get the final amount to charge
+            $amount = $this->applyProductDiscount(
+                $originalAmount,
+                $validated['mobile_network'],
+                $discounts['data'] ?? []
+            );
+
+            // Create transaction record with discounted amount
+            $transaction = NelloBytesTransaction::create([
+                'user_id' => $user->sId,
+                'service_type' => NelloBytesServiceType::EPIN,
+                'transaction_ref' => $transactionRef,
+                'amount' => $amount,
+                'status' => TransactionStatus::PENDING,
+                'request_payload' => $requestPayload,
+            ]);
+
             $networks = [
                 '01' => 'MTN',
                 '02' => 'GLO',
@@ -98,7 +108,7 @@ class EpinController extends Controller
                 '03' => '9mobile',
             ];
 
-            // Debit wallet before making the purchase call
+            // Debit wallet with discounted amount
             $debit = debitWallet(
                 $user,
                 $amount,
@@ -285,6 +295,64 @@ class EpinController extends Controller
 
         return $this->ok('EPIN history retrieved', $epins);
     }
+
+    /**
+     * Apply product discount to amount based on mobile network
+     *
+     * @param float $amount The original amount
+     * @param string $networkId The mobile network ID (01, 02, 03, 04)
+     * @param array $discountData The discount data from API
+     * @return float The discounted amount
+     */
+    private function applyProductDiscount(float $amount, string $networkId, array $discountData): float
+    {
+        // Map network IDs to network names
+        $networkMap = [
+            '01' => 'MTN',
+            '02' => 'Glo',
+            '03' => '9mobile',
+            '04' => 'Airtel',
+        ];
+
+        // Get the network name from the ID
+        $networkName = $networkMap[$networkId] ?? null;
+
+        if (!$networkName) {
+            // If network not found, return original amount
+            Log::warning('Unknown network ID for discount calculation', ['network_id' => $networkId]);
+            return $amount;
+        }
+
+        // Check if discount data exists for this network
+        if (!isset($discountData['MOBILE_NETWORK'][$networkName])) {
+            Log::warning('No discount data found for network', ['network' => $networkName]);
+            return $amount;
+        }
+
+        $networkDiscounts = $discountData['MOBILE_NETWORK'][$networkName];
+
+        // Get the first discount entry (assuming one discount per network)
+        if (empty($networkDiscounts) || !isset($networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'])) {
+            Log::warning('Invalid discount structure for network', ['network' => $networkName]);
+            return $amount;
+        }
+
+        $discountMultiplier = (float) $networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'];
+
+        // Calculate and return discounted amount
+        $discountedAmount = $amount * $discountMultiplier;
+
+        Log::info('Discount applied', [
+            'network' => $networkName,
+            'original_amount' => $amount,
+            'discount_multiplier' => $discountMultiplier,
+            'discount_percentage' => $networkDiscounts[0]['PRODUCT_DISCOUNT'] ?? 'N/A',
+            'discounted_amount' => $discountedAmount,
+        ]);
+
+        return $discountedAmount;
+    }
+
     private function isNellobytesEnabled(): bool
     {
         static $enabled = null;

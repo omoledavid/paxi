@@ -29,4 +29,15 @@ class CableTvService extends NelloBytesClient
 
         return $this->makeRequest($endpoint, [], 'GET');
     }
+    public function verifyIUC(string $cableTv, string $smartCardNo): array
+    {
+        $endpoint = config('nellobytes.endpoints.cabletv.verify');
+
+        $params = [
+            'CableTV' => $cableTv,
+            'SmartCardNo' => $smartCardNo,
+        ];
+
+        return $this->makeRequest($endpoint, $params, 'POST');
+    }
 }

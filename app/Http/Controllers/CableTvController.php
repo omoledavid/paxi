@@ -146,6 +146,10 @@ class CableTvController extends Controller
             'provider_id' => 'required',
             'iuc_no' => 'required',
         ]);
+        if ($this->isNellobytesEnabled()) {
+            $response = $this->cableTvService->verifyIUC($request->provider_id, $request->iuc_no);
+            return $this->ok('success', $response);
+        }
         $data = $this->validateIUCNumber($request->provider_id, $request->iuc_no, $user->sApiKey);
         return $this->ok('success', $data);
     }
