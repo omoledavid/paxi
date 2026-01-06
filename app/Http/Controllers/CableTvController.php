@@ -148,7 +148,19 @@ class CableTvController extends Controller
         ]);
         if ($this->isNellobytesEnabled()) {
             $response = $this->cableTvService->verifyIUC($request->provider_id, $request->iuc_no);
-            return $this->ok('success', $response);
+            if($response['status'] == 'INVALID_CABLETV'){
+                return $this->error('Invalid IUC number');
+            }
+
+            $formattedResponse = [
+                "status" => "success",
+                "Status" => "successful",
+                "msg" => $response['customer_name'] ?? '',
+                "name" => $response['customer_name'] ?? '',
+                "Customer_Name" => $response['customer_name'] ?? ''
+            ];
+
+            return $this->ok('success', $formattedResponse);
         }
         $data = $this->validateIUCNumber($request->provider_id, $request->iuc_no, $user->sApiKey);
         return $this->ok('success', $data);

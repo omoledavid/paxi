@@ -111,16 +111,7 @@ class DataController extends Controller
                 DB::commit();
 
                 return $this->ok('Data purchase successful', $response);
-
-            } catch (\App\Exceptions\NelloBytesTransactionFailedException $e) {
-                // Determine HTTP status code based on error message/type if needed
-                // For business logic failures (like invalid number), we often return 400 or 422
-                // But NelloBytesTransactionService already refunded the user.
-                // We COMMIT the transaction so the 'FAILED' status and Refund are saved.
-                DB::commit();
-
-                return $this->error($e->getMessage(), 400, $e->getApiResponse());
-
+                
             } catch (\Exception $e) {
                 DB::rollBack();
                 \Log::error('Data purchase failed', [
