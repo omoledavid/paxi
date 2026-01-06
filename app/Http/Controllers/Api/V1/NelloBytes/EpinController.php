@@ -88,7 +88,7 @@ class EpinController extends Controller
             $amount = $this->applyProductDiscount(
                 $originalAmount,
                 $validated['mobile_network'],
-                $discounts['data'] ?? []
+                $discounts ?? []
             );
 
             // Create transaction record with discounted amount
