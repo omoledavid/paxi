@@ -33,6 +33,7 @@ class ElectricityService extends NelloBytesClient
         string $meterType,
         string $meterNumber,
         float $amount,
+        string $phoneNumber,
         string $transactionRef,
         ?string $callbackUrl = null
     ): array {
@@ -43,6 +44,7 @@ class ElectricityService extends NelloBytesClient
             'MeterType' => $meterType,
             'MeterNo' => $meterNumber,
             'Amount' => $amount,
+            'PhoneNo' =>$phoneNumber,
             'callback_url' => $callbackUrl,
         ];
 

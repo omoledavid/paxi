@@ -212,7 +212,7 @@ function networkName($code)
         '1' => 'MTN',
         '2' => 'GLO',
         '4' => 'Airtel',
-        '3' => '9mobile',
+        '3' => 'T2-Mobile',
     ];
 
     return $networks[$code] ?? 'Unknown Network';

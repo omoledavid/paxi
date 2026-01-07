@@ -34,7 +34,7 @@ class NigerianPhone implements ValidationRule
         '0802',
         '0808',
         '0812',
-        // 9mobile
+        // T2-Mobile
         '0909',
         '0809',
     ];
@@ -69,7 +69,7 @@ class NigerianPhone implements ValidationRule
 
         // Check if the prefix is valid
         if (!in_array($prefix, self::VALID_PREFIXES, true)) {
-            $fail('The phone number must be a valid Nigerian phone number (MTN, Glo, Airtel, or 9mobile).');
+            $fail('The phone number must be a valid Nigerian phone number (MTN, Glo, Airtel, or T2-Mobile).');
             return;
         }
     }

@@ -208,7 +208,7 @@ class ElectricityController extends Controller
                 transactionRef: $transRef,
                 wrapInTransaction: false
             );
-            $response = $this->electricityService->purchaseElectricity($validatedData['provider_id'], $meterType, $validatedData['meter_no'], $validatedData['amount'], $transRef);
+            $response = $this->electricityService->purchaseElectricity($validatedData['provider_id'], $meterType, $validatedData['meter_no'], $validatedData['amount'], $transRef, $user->sPhone);
             $nellobytesRef = $response['reference'] ?? $response['ref'] ?? null;
             $transaction->update([
                 'status' => TransactionStatus::SUCCESS,

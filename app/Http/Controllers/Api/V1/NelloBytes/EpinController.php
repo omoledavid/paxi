@@ -105,7 +105,7 @@ class EpinController extends Controller
                 '01' => 'MTN',
                 '02' => 'GLO',
                 '04' => 'Airtel',
-                '03' => '9mobile',
+                '03' => 'T2-Mobile',
             ];
 
             // Debit wallet with discounted amount
@@ -283,7 +283,7 @@ class EpinController extends Controller
                     '01' => 'MTN',
                     '02' => 'GLO',
                     '04' => 'Airtel',
-                    '03' => '9mobile',
+                    '03' => 'T2-Mobile',
                 ];
 
                 if (isset($networks[$epin->network])) {
@@ -310,7 +310,7 @@ class EpinController extends Controller
         $networkMap = [
             '01' => 'MTN',
             '02' => 'Glo',
-            '03' => '9mobile',
+            '03' => 'T2-Mobile',
             '04' => 'Airtel',
         ];
 

@@ -49,7 +49,7 @@ class AirtimeController extends Controller
 
         // Check transaction PIN first (for non-Nellobytes flow)
         if (!$this->isNellobytesEnabled()) {
-            if (!hash_equals($user->sPin, $validated['pin'])) {
+            if (!hash_equals((string) $user->sPin, (string) $validated['pin'])) {
                 throw ValidationException::withMessages([
                     'pin' => 'The provided PIN is incorrect.',
                 ]);

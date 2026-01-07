@@ -80,7 +80,7 @@
                                 '01' => 'MTN',
                                 '02' => 'GLO',
                                 '04' => 'Airtel',
-                                '03' => '9mobile',
+                                '03' => 'T2-Mobile',
                             ];
                             $networkName = $networks[$epin['network']] ?? $epin['network'];
                         @endphp
