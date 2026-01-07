@@ -11,7 +11,6 @@ use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
-use Log;
 
 class AirtimeController extends Controller
 {
@@ -112,18 +111,16 @@ class AirtimeController extends Controller
             'airtime_type' => $validated['type'],
         ];
 
-        // Call legacy API
+        //legacy code
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'Token' => "Token {$user->sApiKey}",
         ])->post($host, $payload);
 
-        Log::info("Result: " . $response);
         $result = $response->json();
 
-
         if ($response->failed() || ($result['status'] ?? null) !== 'success') {
-            return $this->error('Airtime purchase failed. Please try again.');
+            return $this->error($result['msg'] ?? 'Airtime purchase failed. Please try again.');
         }
 
         // Optionally debit wallet here too if not handled by webhook/callback
