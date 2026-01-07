@@ -95,12 +95,12 @@ class CableTvController extends Controller
         $transRef = generateTransactionRef();
         // Prepare API request payload
         $payload = [
-            'provider' => $request->provider_id,
-            'customer_no' => $user->sPhone,
-            'type' => $request->type,
-            'iucnumber' => $request->iuc_no,
+            'provider' => $validatedData['provider_id'],
+            'customer_no' => $validatedData['customer_no'] ?? $user->sPhone,
+            'type' => $validatedData['type'],
+            'iucnumber' => $validatedData['iuc_no'],
             'ref' => $transRef,
-            'plan' => $request->plan_id,
+            'plan' => $validatedData['plan_id'],
         ];
 
         // Send API request
