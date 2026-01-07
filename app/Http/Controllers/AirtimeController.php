@@ -120,7 +120,7 @@ class AirtimeController extends Controller
         $result = $response->json();
 
         if ($response->failed() || ($result['status'] ?? null) !== 'success') {
-            return $this->error($result['msg'] ?? 'Airtime purchase failed. Please try again.');
+            return $this->error('Airtime purchase failed. Please try again.');
         }
 
         // Optionally debit wallet here too if not handled by webhook/callback
