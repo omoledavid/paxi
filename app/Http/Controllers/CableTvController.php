@@ -96,7 +96,7 @@ class CableTvController extends Controller
         // Prepare API request payload
         $payload = [
             'provider' => $request->provider_id,
-            'customer_no' => $request->customer_no,
+            'customer_no' => $user->sPhone,
             'type' => $request->type,
             'iucnumber' => $request->iuc_no,
             'ref' => $transRef,

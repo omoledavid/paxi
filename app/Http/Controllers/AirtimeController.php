@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\NetworkResource;
+use App\Models\Airtime;
 use App\Models\ApiConfig;
 use App\Models\Network;
 use App\Services\NelloBytes\AirtimeService;
@@ -61,6 +62,18 @@ class AirtimeController extends Controller
         // Route to Nellobytes if enabled
         if ($this->isNellobytesEnabled()) {
             $networkID = '0' . $validated['network'];
+            $airtimeDiscount = Airtime::where('aNetwork', $validated['network'])->first();
+
+            // Calculate discount based on user type
+            $discountRate = match ((int) $user->sType) {
+                1 => $airtimeDiscount->aUserDiscount,
+                2 => $airtimeDiscount->aAgentDiscount,
+                3 => $airtimeDiscount->aVendorDiscount,
+                default => 100
+            };
+
+            // Calculate payable amount: (Amount / 100) * DiscountRate
+            $payableAmount = ($validated['amount'] / 100) * $discountRate;
             $result = $this->airtimeService->purchaseAirtime(
                 networkCode: $networkID,
                 phoneNumber: $validated['phone_number'],
@@ -75,9 +88,9 @@ class AirtimeController extends Controller
             // Debit wallet after successful API call
             debitWallet(
                 user: $user,
-                amount: $validated['amount'],
+                amount: $payableAmount,
                 serviceName: 'Airtime Purchase',
-                serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']}",
+                serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']} at NGN{$payableAmount}",
                 transactionRef: $transactionRef,
                 wrapInTransaction: false,
             );
@@ -87,17 +100,22 @@ class AirtimeController extends Controller
             ]);
         }
 
-        // Fallback to legacy API (your current provider)
-        $response = Http::withToken($user->sApiKey)
-            ->contentType('application/json')
-            ->post(rtrim(env('FRONTEND_URL'), '/') . '/api838190/airtime/', [
-                'network' => $validated['network'],
-                'amount' => $validated['amount'],
-                'phone' => $validated['phone_number'],
-                'ported_number' => false,
-                'ref' => $transactionRef,
-                'airtime_type' => $validated['type'],
-            ]);
+        $host = env('FRONTEND_URL') . '/api838190/airtime/';
+
+        $payload = [
+            'network' => $validated['network'],
+            'amount' => $validated['amount'],
+            'phone' => $validated['phone_number'],
+            'ported_number' => false,
+            'ref' => $transactionRef,
+            'airtime_type' => $validated['type'],
+        ];
+
+        // Call legacy API
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/json',
+            'Token' => "Token {$user->sApiKey}",
+        ])->post($host, $payload);
 
         $result = $response->json();
 

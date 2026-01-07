@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Log;
 
 class GatewayApiService
 {
-    protected string $apiToken;
-    protected string $sender;
+    protected ?string $apiToken;
+    protected ?string $sender;
     protected string $baseUrl = 'https://gatewayapi.com/rest';
 
     public function __construct()

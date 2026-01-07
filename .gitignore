@@ -24,3 +24,5 @@ yarn-error.log
 /.zed
 composer.lock
 docs/*
+GEMINI.md
+.gemini/
