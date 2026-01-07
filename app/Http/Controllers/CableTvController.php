@@ -190,7 +190,7 @@ class CableTvController extends Controller
                 transactionRef: $transRef,
                 wrapInTransaction: false
             );
-            $response = $this->cableTvService->purchaseCableTv(CableTV: strtolower($cableTv), Package: $cableTvPlan, smartCardNo: $validatedData['iuc_no'], PhoneNo: $validatedData['customer_no']);
+            $response = $this->cableTvService->purchaseCableTv(CableTV: strtolower($cableTv), Package: $cableTvPlan, smartCardNo: $validatedData['iuc_no'], PhoneNo: $validatedData['customer_no'] ?? $user->sPhone);
 
             // Use the new service to handle response and potential refunds
             $this->nelloBytesTransactionService->handleProviderResponse(
