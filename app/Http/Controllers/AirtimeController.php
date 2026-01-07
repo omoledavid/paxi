@@ -11,6 +11,7 @@ use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use Log;
 
 class AirtimeController extends Controller
 {
@@ -118,6 +119,8 @@ class AirtimeController extends Controller
         ])->post($host, $payload);
 
         $result = $response->json();
+
+        Log::info("Result: " . $result["status"] . "" . $result["message"]);
 
         if ($response->failed() || ($result['status'] ?? null) !== 'success') {
             return $this->error('Airtime purchase failed. Please try again.');
