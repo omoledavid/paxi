@@ -71,7 +71,7 @@ class CableTvController extends Controller
             'plan_id' => 'required',
             'price' => 'required|integer|min:1',
             'type' => 'required',
-            'customer_no' => 'required',
+            'customer_no' => 'nullable',
             'iuc_no' => 'required',
             'pin' => 'required',
         ]);
