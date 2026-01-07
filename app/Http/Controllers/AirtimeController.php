@@ -11,6 +11,7 @@ use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use Log;
 
 class AirtimeController extends Controller
 {
@@ -71,6 +72,8 @@ class AirtimeController extends Controller
                 3 => $airtimeDiscount->aVendorDiscount,
                 default => 100
             };
+
+            Log::info("Discount rate: {$discountRate}. user discount: {$airtimeDiscount->aUserDiscount}");
 
             // Calculate payable amount: (Amount / 100) * DiscountRate
             $payableAmount = ($validated['amount'] / 100) * $discountRate;
