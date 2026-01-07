@@ -73,8 +73,6 @@ class AirtimeController extends Controller
                 default => 100
             };
 
-            Log::info("Discount rate: {$discountRate}. user discount: {$airtimeDiscount->aUserDiscount}");
-
             // Calculate payable amount: (Amount / 100) * DiscountRate
             $payableAmount = ($validated['amount'] / 100) * $discountRate;
             $result = $this->airtimeService->purchaseAirtime(
