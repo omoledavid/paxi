@@ -62,7 +62,7 @@ class AirtimeController extends Controller
         // Route to Nellobytes if enabled
         if ($this->isNellobytesEnabled()) {
             $networkID = '0' . $validated['network'];
-            $airtimeDiscount = Airtime::where('aNetwork', $validated['network'])->first();
+            $airtimeDiscount = Airtime::where('aNetwork', $validated['network'])->where('aType', 'VTU')->first();
 
             // Calculate discount based on user type
             $discountRate = match ((int) $user->sType) {
