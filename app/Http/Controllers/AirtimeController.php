@@ -118,9 +118,9 @@ class AirtimeController extends Controller
             'Token' => "Token {$user->sApiKey}",
         ])->post($host, $payload);
 
+        Log::info("Result: " . $response);
         $result = $response->json();
 
-        Log::info("Result: " . $result);
 
         if ($response->failed() || ($result['status'] ?? null) !== 'success') {
             return $this->error('Airtime purchase failed. Please try again.');
