@@ -120,7 +120,7 @@ class AirtimeController extends Controller
 
         $result = $response->json();
 
-        Log::info("Result: " . $result["status"] . "" . $result["message"]);
+        Log::info("Result: " . $result);
 
         if ($response->failed() || ($result['status'] ?? null) !== 'success') {
             return $this->error('Airtime purchase failed. Please try again.');
