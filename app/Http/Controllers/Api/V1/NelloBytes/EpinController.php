@@ -38,25 +38,10 @@ class EpinController extends Controller
     public function getDiscounts(): JsonResponse
     {
         try {
-            $discounts = Cache::get('epin_discounts');
-
-            if (!$discounts) {
-                try {
-                    $discounts = $this->epinService->getDiscounts();
-                    // Cache for 1 day
-                    Cache::put('epin_discounts', $discounts, now()->addDay());
-                    // Keep a backup forever in case of failures
-                    Cache::put('epin_discounts_backup', $discounts, now()->addYear());
-                } catch (\Exception $e) {
-                    Log::warning('Failed to refresh EPIN discounts, attempting fallback', ['error' => $e->getMessage()]);
-                    $discounts = Cache::get('epin_discounts_backup');
-
-                    if (!$discounts) {
-                        throw $e;
-                    }
-                }
-            }
-            $prices = [100, 200, 500, 1000];
+            // We now use hardcoded rates in applyProductDiscount for the supported networks,
+            // so we don't need to fetch external discounts here.
+            $discounts = [];
+            $prices = [100, 200, 500];
             $networkIds = ['01', '02', '03', '04'];
 
             $formattedDiscounts = [];
@@ -353,6 +338,30 @@ class EpinController extends Controller
      */
     private function applyProductDiscount(float $amount, string $networkId, array $discountData): float
     {
+        // Hardcoded rates based on user request:
+        // MTN: 100->100 (1.0)
+        // Glo: 100->99 (0.99)
+        // Airtel: 100->98 (0.98)
+        // T2mobile: 100->96 (0.96)
+        $customRates = [
+            '01' => 1.0,   // MTN
+            '02' => 0.99,  // Glo
+            '04' => 0.98,  // Airtel
+            '03' => 0.96,  // T2-Mobile
+        ];
+
+        if (array_key_exists($networkId, $customRates)) {
+            $discountedAmount = $amount * $customRates[$networkId];
+            Log::info('Custom discount applied', [
+                'network_id' => $networkId,
+                'original_amount' => $amount,
+                'rate' => $customRates[$networkId],
+                'discounted_amount' => $discountedAmount
+            ]);
+            return $discountedAmount;
+        }
+
+        // Fallback to original logic if network ID isn't in our custom list (unlikely given the known IDs)
         // Map network IDs to network names
         $networkMap = [
             '01' => 'MTN',
