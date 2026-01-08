@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class EpinController extends Controller
 {
@@ -37,9 +38,55 @@ class EpinController extends Controller
     public function getDiscounts(): JsonResponse
     {
         try {
-            $discounts = $this->epinService->getDiscounts();
+            $discounts = Cache::get('epin_discounts');
 
-            return $this->ok('EPIN discounts retrieved successfully', $discounts);
+            if (!$discounts) {
+                try {
+                    $discounts = $this->epinService->getDiscounts();
+                    // Cache for 1 day
+                    Cache::put('epin_discounts', $discounts, now()->addDay());
+                    // Keep a backup forever in case of failures
+                    Cache::put('epin_discounts_backup', $discounts, now()->addYear());
+                } catch (\Exception $e) {
+                    Log::warning('Failed to refresh EPIN discounts, attempting fallback', ['error' => $e->getMessage()]);
+                    $discounts = Cache::get('epin_discounts_backup');
+
+                    if (!$discounts) {
+                        throw $e;
+                    }
+                }
+            }
+            $prices = [100, 200, 500, 1000];
+            $networkIds = ['01', '02', '03', '04'];
+
+            $formattedDiscounts = [];
+            $networkMap = [
+                '01' => 'MTN',
+                '02' => 'Glo',
+                '03' => 'T2-Mobile',
+                '04' => 'Airtel',
+            ];
+
+            foreach ($networkIds as $networkId) {
+                $networkPrices = [];
+                foreach ($prices as $price) {
+                    $discountedAmount = $this->applyProductDiscount((float) $price, $networkId, $discounts);
+                    $networkPrices[] = [
+                        'amount' => $price,
+                        'payable' => $discountedAmount
+                    ];
+                }
+
+                $formattedDiscounts[] = [
+                    'network' => $networkMap[$networkId] ?? 'Unknown',
+                    'network_id' => $networkId,
+                    'prices' => $networkPrices
+                ];
+            }
+
+            return $this->ok('EPIN discounts retrieved successfully', [
+                'discounts' => $formattedDiscounts,
+            ]);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve EPIN discounts', [
                 'error' => $e->getMessage(),
