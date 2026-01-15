@@ -135,6 +135,9 @@ class GeneralController extends Controller
             'whatsapp_group' => gs('whatsappgroup'),
             'email' => gs('email'),
             'phone' => gs('phone'),
+            'terms' => gs('terms'),
+            'privacy' => gs('privacy'),
+            'about' => gs('about'),
         ]);
     }
 }
