@@ -11,8 +11,6 @@ class NelloBytesTransactionFailedException extends Exception
     /**
      * Create a new exception instance.
      *
-     * @param  string  $message
-     * @param  array  $apiResponse
      * @return void
      */
     public function __construct(string $message = 'Transaction failed', array $apiResponse = [])
@@ -23,8 +21,6 @@ class NelloBytesTransactionFailedException extends Exception
 
     /**
      * Get the API response associated with the exception.
-     *
-     * @return array
      */
     public function getApiResponse(): array
     {

@@ -7,6 +7,7 @@ use Exception;
 class NelloBytesException extends Exception
 {
     protected $errorCode;
+
     protected $errorData;
 
     public function __construct(string $message = '', string $errorCode = '', $errorData = null, int $code = 0, ?\Throwable $previous = null)
@@ -26,4 +27,3 @@ class NelloBytesException extends Exception
         return $this->errorData;
     }
 }
-

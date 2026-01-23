@@ -21,7 +21,7 @@ class CableTVPlanResource extends JsonResource
                 'name' => $this->name,
                 'price' => $this->userprice,
                 'day' => $this->day,
-            ]
+            ],
         ];
     }
 }

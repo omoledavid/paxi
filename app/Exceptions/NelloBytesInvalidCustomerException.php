@@ -9,4 +9,3 @@ class NelloBytesInvalidCustomerException extends NelloBytesApiException
         parent::__construct($message, 'INVALID_CUSTOMERID', $errorData, 400);
     }
 }
-

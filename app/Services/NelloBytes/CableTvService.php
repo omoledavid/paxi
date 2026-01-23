@@ -4,7 +4,7 @@ namespace App\Services\NelloBytes;
 
 class CableTvService extends NelloBytesClient
 {
-    public function purchaseCableTv(string $CableTV, string $Package, string $smartCardNo, string $PhoneNo, string $RequestID = null, string $CallBackURL = null): array
+    public function purchaseCableTv(string $CableTV, string $Package, string $smartCardNo, string $PhoneNo, ?string $RequestID = null, ?string $CallBackURL = null): array
     {
         $endpoint = config('nellobytes.endpoints.cabletv.buy');
 
@@ -16,7 +16,7 @@ class CableTvService extends NelloBytesClient
             'RequestID' => $RequestID,
         ];
 
-        if (!empty($CallBackURL)) {
+        if (! empty($CallBackURL)) {
             $params['CallBackURL'] = $CallBackURL;
         }
 
@@ -29,6 +29,7 @@ class CableTvService extends NelloBytesClient
 
         return $this->makeRequest($endpoint, [], 'GET');
     }
+
     public function verifyIUC(string $cableTv, string $smartCardNo): array
     {
         $endpoint = config('nellobytes.endpoints.cabletv.verify');

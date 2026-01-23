@@ -40,4 +40,3 @@ class VerifyBettingCustomerRequest extends FormRequest
         ];
     }
 }
-

@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Resources\ExamProviderResource;
 use App\Models\ExamProvider;
 use App\Traits\ApiResponses;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class ExamCardController extends Controller
 {
@@ -15,8 +15,10 @@ class ExamCardController extends Controller
     public function index()
     {
         $examCard = ExamProvider::all();
+
         return $this->ok('success', ExamProviderResource::collection($examCard));
     }
+
     public function purchaseExamCardPin(Request $request)
     {
         $user = auth()->user();
@@ -26,12 +28,12 @@ class ExamCardController extends Controller
             'pin' => 'required',
         ]);
 
-        //check pin
+        // check pin
         if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
         }
-        $host = env('FRONTEND_URL') . '/api838190/exam/';
-        //ref code
+        $host = env('FRONTEND_URL').'/api838190/exam/';
+        // ref code
         $transRef = generateTransactionRef();
         $payload = [
             'provider' => $request->provider_id,

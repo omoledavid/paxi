@@ -21,7 +21,7 @@ class ExamProviderResource extends JsonResource
                 'name' => $this->provider,
                 'price' => $this->price,
                 'providerStatus' => $this->providerStatus,
-            ]
+            ],
         ];
     }
 }

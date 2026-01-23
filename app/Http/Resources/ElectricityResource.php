@@ -21,7 +21,7 @@ class ElectricityResource extends JsonResource
                 'provider' => $this->provider,
                 'abbreviation' => $this->abbreviation,
                 'providerStatus' => $this->providerStatus,
-            ]
+            ],
         ];
     }
 }

@@ -51,4 +51,3 @@ class EnsureRecentActivity
         ], 401);
     }
 }
-

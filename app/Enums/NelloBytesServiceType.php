@@ -12,4 +12,3 @@ enum NelloBytesServiceType: string
     case ELECTRICITY = 'electricity';
     case CABLETV = 'cabletv';
 }
-

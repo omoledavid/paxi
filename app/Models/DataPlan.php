@@ -10,6 +10,7 @@ class DataPlan extends Model
     use HasFactory;
 
     protected $table = 'dataplans'; // Table name
+
     protected $primaryKey = 'pId';  // Primary key column
 
     public function network()

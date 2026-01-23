@@ -12,11 +12,6 @@ class NelloBytesTransactionService
     /**
      * Handle the response from the provider (NelloBytes).
      *
-     * @param array $response
-     * @param NelloBytesTransaction $transaction
-     * @param User $user
-     * @param float $amount
-     * @return array
      * @throws NelloBytesTransactionFailedException
      */
     public function handleProviderResponse(
@@ -53,7 +48,7 @@ class NelloBytesTransactionService
             user: $user,
             amount: $amount,
             serviceName: 'Wallet Refund',
-            serviceDesc: 'Refund for failed transaction ' . $transaction->transaction_ref . ': ' . ($response['message'] ?? 'Unknown error'),
+            serviceDesc: 'Refund for failed transaction '.$transaction->transaction_ref.': '.($response['message'] ?? 'Unknown error'),
             transactionRef: null, // Generate new ref for the refund transaction
             wrapInTransaction: false // Already inside a transaction in the controller typically
         );

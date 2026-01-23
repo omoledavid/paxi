@@ -46,10 +46,11 @@ class ProcessNelloBytesWebhook implements ShouldQueue
             $nellobytesRef = $this->extractNelloBytesRef($this->payload);
             $status = $this->extractStatus($this->payload);
 
-            if (!$transactionRef && !$nellobytesRef) {
+            if (! $transactionRef && ! $nellobytesRef) {
                 Log::warning('NelloBytes webhook missing transaction reference', [
                     'payload' => $this->payload,
                 ]);
+
                 return;
             }
 
@@ -59,16 +60,17 @@ class ProcessNelloBytesWebhook implements ShouldQueue
                 $transaction = NelloBytesTransaction::where('transaction_ref', $transactionRef)->first();
             }
 
-            if (!$transaction && $nellobytesRef) {
+            if (! $transaction && $nellobytesRef) {
                 $transaction = NelloBytesTransaction::where('nellobytes_ref', $nellobytesRef)->first();
             }
 
-            if (!$transaction) {
+            if (! $transaction) {
                 Log::warning('NelloBytes webhook transaction not found', [
                     'transaction_ref' => $transactionRef,
                     'nellobytes_ref' => $nellobytesRef,
                     'payload' => $this->payload,
                 ]);
+
                 return;
             }
 
@@ -81,7 +83,7 @@ class ProcessNelloBytesWebhook implements ShouldQueue
                 $updateData['status'] = $status;
             }
 
-            if ($nellobytesRef && !$transaction->nellobytes_ref) {
+            if ($nellobytesRef && ! $transaction->nellobytes_ref) {
                 $updateData['nellobytes_ref'] = $nellobytesRef;
             }
 
@@ -114,9 +116,6 @@ class ProcessNelloBytesWebhook implements ShouldQueue
 
     /**
      * Extract transaction reference from payload
-     *
-     * @param array $payload
-     * @return string|null
      */
     protected function extractTransactionRef(array $payload): ?string
     {
@@ -132,9 +131,6 @@ class ProcessNelloBytesWebhook implements ShouldQueue
 
     /**
      * Extract NelloBytes reference from payload
-     *
-     * @param array $payload
-     * @return string|null
      */
     protected function extractNelloBytesRef(array $payload): ?string
     {
@@ -148,9 +144,6 @@ class ProcessNelloBytesWebhook implements ShouldQueue
 
     /**
      * Extract status from payload
-     *
-     * @param array $payload
-     * @return TransactionStatus|null
      */
     protected function extractStatus(array $payload): ?TransactionStatus
     {
@@ -175,6 +168,7 @@ class ProcessNelloBytesWebhook implements ShouldQueue
 
         if ($orderStatus) {
             $normalized = strtolower($orderStatus);
+
             return match ($normalized) {
                 'order_completed', 'completed', 'success', 'successful' => TransactionStatus::SUCCESS,
                 'order_received', 'order_onhold', 'pending' => TransactionStatus::PENDING,
@@ -183,7 +177,7 @@ class ProcessNelloBytesWebhook implements ShouldQueue
             };
         }
 
-        if (!$status) {
+        if (! $status) {
             return null;
         }
 
@@ -200,9 +194,6 @@ class ProcessNelloBytesWebhook implements ShouldQueue
 
     /**
      * Extract error message from payload
-     *
-     * @param array $payload
-     * @return string|null
      */
     protected function extractErrorMessage(array $payload): ?string
     {
@@ -216,9 +207,6 @@ class ProcessNelloBytesWebhook implements ShouldQueue
 
     /**
      * Extract error code from payload
-     *
-     * @param array $payload
-     * @return string|null
      */
     protected function extractErrorCode(array $payload): ?string
     {
@@ -229,4 +217,3 @@ class ProcessNelloBytesWebhook implements ShouldQueue
             ?? null;
     }
 }
-

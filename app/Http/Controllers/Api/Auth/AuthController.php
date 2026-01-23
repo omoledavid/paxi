@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
-
 use App\Http\Controllers\Controller;
 use App\Mail\AccountLocked;
 use App\Models\ApiConfig;
@@ -12,7 +11,6 @@ use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
@@ -20,27 +18,29 @@ use Illuminate\Validation\Rules\Password;
 class AuthController extends Controller
 {
     use ApiResponses;
+
     public function register(Request $request)
     {
         $validatedData = request()->validate([
             'fname' => 'required',
             'lname' => 'required',
             'sEmail' => 'required|email|unique:subscribers',
-            'sPhone' => ['required', 'unique:subscribers', new NigerianPhone()],
+            'sPhone' => ['required', 'unique:subscribers', new NigerianPhone],
             'password' => ['required', Password::defaults(), 'confirmed'],
             'state' => 'nullable',
             'pin' => 'nullable|min:4',
-            'referral' => 'nullable'
+            'referral' => 'nullable',
         ]);
-        if (preg_match("/[^a-zA-Z0-9_ ]/", $request->fname)) {
+        if (preg_match('/[^a-zA-Z0-9_ ]/', $request->fname)) {
             $response[] = 'No special characters or capital letters are allowed in the name field.';
+
             return $this->error($response, 400);
         }
         $apiKey = apiKeyGen();
         $verCode = verificationCode(6);
         $userType = 0;
 
-        $user = new User();
+        $user = new User;
         $user->sFname = $validatedData['fname'];
         $user->sLname = $validatedData['lname'];
         $user->sEmail = $validatedData['sEmail'];
@@ -58,16 +58,16 @@ class AuthController extends Controller
 
         sendVerificationCode($verCode, $user->sEmail);
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
-        //Generate User Login Token
-        $randomToken = substr(str_shuffle("ABCDEFGHIJklmnopqrstvwxyz"), 0, 10);
-        $userLoginToken = time() . $randomToken . mt_rand(100, 1000);
+        // Generate User Login Token
+        $randomToken = substr(str_shuffle('ABCDEFGHIJklmnopqrstvwxyz'), 0, 10);
+        $userLoginToken = time().$randomToken.mt_rand(100, 1000);
 
         //        $userLogin = new UserLogin();
         //        $userLogin->user = $user->sId;
         //        $userLogin->token = $userLoginToken;
         //        $userLogin->save();
 
-        //create virtual account
+        // create virtual account
         $apiConfig = ApiConfig::all();
         $monnifySecret = getConfigValue($apiConfig, 'monifySecrete');
         $monnifyApi = getConfigValue($apiConfig, 'monifyApi');
@@ -75,13 +75,13 @@ class AuthController extends Controller
         $monnifyContract = getConfigValue($apiConfig, 'monifyContract');
 
         if ($monifyStatus == 'On') {
-            //$this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
+            // $this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
         }
 
         //        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
         return $this->ok('User registered successfully. Please verify your email address.', [
             'user' => $user,
-            'token' => $token
+            'token' => $token,
         ]);
     }
 
@@ -99,28 +99,30 @@ class AuthController extends Controller
 
         $user = User::query()->where('sPhone', $request->sPhone)->orWhere('sEmail', $request->sPhone)->first();
 
-        if (!$user) {
+        if (! $user) {
             return $this->error(['Invalid credentials.'], 401);
         }
 
         if ($user->isLocked()) {
             $minutesUntilUnlock = max(1, $user->locked_until->diffInMinutes(now()));
+
             return $this->error([
-                'Your account has been locked due to multiple failed login attempts. ' .
-                'Please reset your password or try again in ' . $minutesUntilUnlock . ' minutes.'
+                'Your account has been locked due to multiple failed login attempts. '.
+                'Please reset your password or try again in '.$minutesUntilUnlock.' minutes.',
             ], 423);
         }
 
         $hashPassword = passwordHash($password);
-        if (!hash_equals($hashPassword, $user->sPass)) {
+        if (! hash_equals($hashPassword, $user->sPass)) {
             $failedAttempts = $user->incrementFailedAttempts();
 
             if ($failedAttempts >= 3) {
                 $user->lockAccount();
                 Mail::to($user->sEmail)->send(new AccountLocked($user));
+
                 return $this->error([
-                    'Your account has been locked due to multiple failed login attempts. ' .
-                    'Please reset your password or try again in 30 minutes.'
+                    'Your account has been locked due to multiple failed login attempts. '.
+                    'Please reset your password or try again in 30 minutes.',
                 ], 423);
             }
 
@@ -146,22 +148,23 @@ class AuthController extends Controller
             [
                 'token' => $token,
                 'user' => [
-                    'name' => $user->sFname . ' ' . $user->sLname,
+                    'name' => $user->sFname.' '.$user->sLname,
                     'email' => $user->sEmail,
                 ],
             ]
         );
     }
 
-
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
+
         return $this->ok('Logged out');
     }
+
     public function createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract)
     {
-        $fullname = $user->sFname . " " . $user->sLname;
+        $fullname = $user->sFname.' '.$user->sLname;
         $accessKey = "$monnifyApi:$monnifySecret";
         $apiKey = base64_encode($accessKey);
 
@@ -178,23 +181,23 @@ class AuthController extends Controller
         }
 
         $accessToken = $authResponse->json('responseBody.accessToken');
-        $ref = uniqid() . rand(1000, 9000);
+        $ref = uniqid().rand(1000, 9000);
 
         // Step 2: Request Account Creation
         $accountCreationResponse = Http::withHeaders([
             'Authorization' => "Bearer {$accessToken}",
             'Content-Type' => 'application/json',
         ])->post($accountCreationUrl, [
-                    "accountReference" => $ref,
-                    "accountName" => $fullname,
-                    "currencyCode" => "NGN",
-                    "contractCode" => $monnifyContract,
-                    "customerEmail" => $user->sEmail,
-                    "bvn" => env('DEFAULT_BVN', ''),
-                    "customerName" => $fullname,
-                    "getAllAvailableBanks" => false,
-                    "preferredBanks" => ["035"],
-                ]);
+            'accountReference' => $ref,
+            'accountName' => $fullname,
+            'currencyCode' => 'NGN',
+            'contractCode' => $monnifyContract,
+            'customerEmail' => $user->sEmail,
+            'bvn' => env('DEFAULT_BVN', ''),
+            'customerName' => $fullname,
+            'getAllAvailableBanks' => false,
+            'preferredBanks' => ['035'],
+        ]);
 
         if ($accountCreationResponse->failed()) {
             throw new \Exception('Failed to create virtual bank account.');
@@ -207,7 +210,7 @@ class AuthController extends Controller
             $accountName = $accountData['responseBody']['accountName'];
             $accounts = $accountData['responseBody']['accounts'];
 
-            if (!empty($accounts) && $accounts[0]['bankCode'] === '035') {
+            if (! empty($accounts) && $accounts[0]['bankCode'] === '035') {
                 $wemaAccountNumber = $accounts[0]['accountNumber'];
                 $wemaBankName = $accounts[0]['bankName'];
 

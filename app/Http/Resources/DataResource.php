@@ -22,8 +22,8 @@ class DataResource extends JsonResource
                 'price' => $this->userprice,
                 'type' => $this->type,
                 'day' => $this->day,
-                'network' => $this->network->network
-            ]
+                'network' => $this->network->network,
+            ],
         ];
     }
 }

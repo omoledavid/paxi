@@ -29,7 +29,7 @@ class TransactionResource extends JsonResource
                 'date' => $this->date,
                 'created_at' => $this->created_at?->toDateTimeString(),
                 'updated_at' => $this->updated_at?->toDateTimeString(),
-            ]
+            ],
         ];
     }
 }

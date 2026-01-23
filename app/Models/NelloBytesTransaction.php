@@ -79,4 +79,3 @@ class NelloBytesTransaction extends Model
         return $query->where('status', TransactionStatus::FAILED->value);
     }
 }
-

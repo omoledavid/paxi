@@ -14,11 +14,17 @@ use Illuminate\Support\Facades\Log;
 class NelloBytesClient
 {
     protected Client $client;
+
     protected string $baseUrl;
+
     protected string $userId;
+
     protected string $apiKey;
+
     protected int $timeout;
+
     protected int $retryAttempts;
+
     protected int $retryDelay;
 
     public function __construct()
@@ -31,7 +37,7 @@ class NelloBytesClient
         $this->retryDelay = config('nellobytes.retry.delay', 1000);
 
         $this->client = new Client([
-            'base_uri' => $this->baseUrl . '/',
+            'base_uri' => $this->baseUrl.'/',
             'timeout' => $this->timeout,
             'headers' => [
                 'Content-Type' => 'application/json',
@@ -43,10 +49,6 @@ class NelloBytesClient
     /**
      * Make a request to NelloBytes API with retry logic
      *
-     * @param string $endpoint
-     * @param array $params
-     * @param string $method
-     * @return array
      * @throws NelloBytesApiException
      * @throws NelloBytesInsufficientBalanceException
      * @throws NelloBytesInvalidCustomerException
@@ -93,15 +95,15 @@ class NelloBytesClient
 
                 // If HTTP 200 and response contains data (not an error), treat as successful
                 // This handles list endpoints (companies, packages, discounts) that return data directly
-                if ($response->getStatusCode() === 200 && !empty($dataArray)) {
+                if ($response->getStatusCode() === 200 && ! empty($dataArray)) {
                     // Check if it looks like an error response
                     $hasErrorIndicators = isset($dataArray['status']) && in_array(strtolower($dataArray['status']), ['fail', 'failed', 'error'])
-                        || isset($dataArray['msg']) && !empty($dataArray['msg'])
-                        || isset($dataArray['message']) && !empty($dataArray['message'])
-                        || isset($dataArray['error']) && !empty($dataArray['error']);
+                        || isset($dataArray['msg']) && ! empty($dataArray['msg'])
+                        || isset($dataArray['message']) && ! empty($dataArray['message'])
+                        || isset($dataArray['error']) && ! empty($dataArray['error']);
 
                     // If it doesn't look like an error and has data, treat as successful
-                    if (!$hasErrorIndicators) {
+                    if (! $hasErrorIndicators) {
                         return $dataArray;
                     }
                 }
@@ -183,7 +185,7 @@ class NelloBytesClient
                 // If this is the last attempt, throw the exception
                 if ($attempt >= $this->retryAttempts) {
                     throw new NelloBytesApiException(
-                        'Failed to connect to NelloBytes API after ' . $this->retryAttempts . ' attempts',
+                        'Failed to connect to NelloBytes API after '.$this->retryAttempts.' attempts',
                         'CONNECTION_ERROR',
                         null,
                         500
@@ -205,7 +207,7 @@ class NelloBytesClient
 
                 if ($attempt >= $this->retryAttempts) {
                     throw new NelloBytesApiException(
-                        'Failed to connect to NelloBytes API: ' . $e->getMessage(),
+                        'Failed to connect to NelloBytes API: '.$e->getMessage(),
                         'CONNECTION_ERROR',
                         null,
                         500
@@ -217,7 +219,7 @@ class NelloBytesClient
         }
 
         throw new NelloBytesApiException(
-            'Failed to connect to NelloBytes API after ' . $this->retryAttempts . ' attempts',
+            'Failed to connect to NelloBytes API after '.$this->retryAttempts.' attempts',
             'CONNECTION_ERROR',
             null,
             500
@@ -227,15 +229,13 @@ class NelloBytesClient
     /**
      * Handle error responses and throw appropriate exceptions
      *
-     * @param array|null $data
-     * @return void
      * @throws NelloBytesInsufficientBalanceException
      * @throws NelloBytesInvalidCustomerException
      * @throws NelloBytesApiException
      */
     protected function handleErrorResponse(?array $data): void
     {
-        if (!$data) {
+        if (! $data) {
             return;
         }
 
@@ -265,9 +265,6 @@ class NelloBytesClient
 
     /**
      * Sanitize parameters for logging (remove sensitive data)
-     *
-     * @param array $params
-     * @return array
      */
     protected function sanitizeParams(array $params): array
     {
@@ -285,11 +282,6 @@ class NelloBytesClient
 
     /**
      * Get cached data or fetch and cache
-     *
-     * @param string $cacheKey
-     * @param callable $callback
-     * @param int|null $ttl
-     * @return mixed
      */
     protected function remember(string $cacheKey, callable $callback, ?int $ttl = null): mixed
     {
@@ -300,13 +292,9 @@ class NelloBytesClient
 
     /**
      * Clear cache by key
-     *
-     * @param string $cacheKey
-     * @return void
      */
     protected function clearCache(string $cacheKey): void
     {
         Cache::forget($cacheKey);
     }
 }
-

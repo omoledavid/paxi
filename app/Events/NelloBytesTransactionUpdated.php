@@ -12,13 +12,11 @@ class NelloBytesTransactionUpdated
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public NelloBytesTransaction $transaction;
+
     public array $webhookPayload;
 
     /**
      * Create a new event instance.
-     *
-     * @param NelloBytesTransaction $transaction
-     * @param array $webhookPayload
      */
     public function __construct(NelloBytesTransaction $transaction, array $webhookPayload = [])
     {
@@ -26,4 +24,3 @@ class NelloBytesTransactionUpdated
         $this->webhookPayload = $webhookPayload;
     }
 }
-

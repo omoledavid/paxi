@@ -49,18 +49,20 @@ class NigerianPhone implements ValidationRule
 
         // Handle international format: convert 234XXXXXXXXXX to 0XXXXXXXXXX
         if (str_starts_with($phone, '234') && strlen($phone) === 13) {
-            $phone = '0' . substr($phone, 3);
+            $phone = '0'.substr($phone, 3);
         }
 
         // Check if the phone number has exactly 11 digits
         if (strlen($phone) !== 11) {
             $fail('The phone number must be 11 digits long.');
+
             return;
         }
 
         // Check if it starts with 0
-        if (!str_starts_with($phone, '0')) {
+        if (! str_starts_with($phone, '0')) {
             $fail('The :attribute must start with 0.');
+
             return;
         }
 
@@ -68,8 +70,9 @@ class NigerianPhone implements ValidationRule
         $prefix = substr($phone, 0, 4);
 
         // Check if the prefix is valid
-        if (!in_array($prefix, self::VALID_PREFIXES, true)) {
+        if (! in_array($prefix, self::VALID_PREFIXES, true)) {
             $fail('The phone number must be a valid Nigerian phone number (MTN, Glo, Airtel, or T2-Mobile).');
+
             return;
         }
     }
@@ -85,10 +88,9 @@ class NigerianPhone implements ValidationRule
 
         // Convert 234 format to 0 format
         if (str_starts_with($phone, '234') && strlen($phone) === 13) {
-            $phone = '0' . substr($phone, 3);
+            $phone = '0'.substr($phone, 3);
         }
 
         return $phone;
     }
 }
-

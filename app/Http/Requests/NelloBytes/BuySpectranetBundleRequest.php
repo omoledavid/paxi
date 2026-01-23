@@ -44,4 +44,3 @@ class BuySpectranetBundleRequest extends FormRequest
         ];
     }
 }
-

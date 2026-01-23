@@ -24,22 +24,23 @@ class ApiAccess
             $charges = ApiConfig::query()->where('name', 'monifyCharges')->first()->value('value');
 
             if ($subscriber) {
-                $response["status"] = "success";
-                $response["userid"] = $subscriber->sId;
-                $response["name"] = $subscriber->sLname ." ". $subscriber->sFname;
-                $response["balance"] = $subscriber->sWallet;
-                $response["charges"] = $charges;
+                $response['status'] = 'success';
+                $response['userid'] = $subscriber->sId;
+                $response['name'] = $subscriber->sLname.' '.$subscriber->sFname;
+                $response['balance'] = $subscriber->sWallet;
+                $response['charges'] = $charges;
+
                 return $response;
             } else {
                 // Subscriber not found
-                $response["status"] = "fail";
+                $response['status'] = 'fail';
+
                 return $response;
             }
         }
 
         return false; // Hash mismatch
     }
-
 
     public function recordMonnifyTransaction($userId, $serviceName, $serviceDesc, $amount, $balance, $transRef, $status)
     {
@@ -56,6 +57,6 @@ class ApiAccess
     private function computeMonnifyHash($token, $secret)
     {
         // Compute hash logic
-        return hash('sha512', $token . $secret);
+        return hash('sha512', $token.$secret);
     }
 }

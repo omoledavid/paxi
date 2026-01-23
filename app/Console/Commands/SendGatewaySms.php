@@ -36,6 +36,7 @@ class SendGatewaySms extends Command
 
         if (empty($recipients)) {
             $this->error('Please provide at least one recipient phone number.');
+
             return self::FAILURE;
         }
 
@@ -51,8 +52,8 @@ class SendGatewaySms extends Command
             $messageIds = $response['data']['ids'] ?? [];
             $this->info('SMS sent successfully.');
 
-            if (!empty($messageIds)) {
-                $this->line('GatewayAPI message IDs: ' . implode(', ', $messageIds));
+            if (! empty($messageIds)) {
+                $this->line('GatewayAPI message IDs: '.implode(', ', $messageIds));
             }
 
             return self::SUCCESS;
@@ -61,15 +62,13 @@ class SendGatewaySms extends Command
         $this->error('Failed to send SMS via GatewayAPI.');
 
         if (isset($response['message'])) {
-            $this->line('Message: ' . $response['message']);
+            $this->line('Message: '.$response['message']);
         }
 
         if (isset($response['error'])) {
-            $this->line('Error details: ' . json_encode($response['error']));
+            $this->line('Error details: '.json_encode($response['error']));
         }
 
         return self::FAILURE;
     }
 }
-
-

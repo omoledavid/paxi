@@ -32,11 +32,11 @@ class CheckStatus
                     'mobile_verified' => $mobileVerified,
                 ];
 
-                if (!$emailVerified && !$mobileVerified) {
+                if (! $emailVerified && ! $mobileVerified) {
                     $message = 'You need to verify both your email and mobile number.';
-                } elseif (!$emailVerified) {
+                } elseif (! $emailVerified) {
                     $message = 'You need to verify your email address.';
-                } elseif (!$mobileVerified) {
+                } elseif (! $mobileVerified) {
                     $message = 'You need to verify your mobile number.';
                 }
 

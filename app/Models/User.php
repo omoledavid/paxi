@@ -11,7 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -19,6 +19,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $table = 'subscribers';
+
     protected $guarded = ['sId'];
 
     protected $primaryKey = 'sId';
@@ -54,13 +55,20 @@ class User extends Authenticatable
             'failed_login_attempts' => 'integer',
             'locked_at' => 'datetime',
             'locked_until' => 'datetime',
+            'kyc_approved_at' => 'datetime',
         ];
+    }
+
+    public function kycAttempts()
+    {
+        return $this->hasMany(KycAttempt::class, 'user_id', 'sId');
     }
 
     public function incrementFailedAttempts(): int
     {
         $this->increment('failed_login_attempts');
         $this->refresh();
+
         return $this->failed_login_attempts;
     }
 
@@ -83,17 +91,19 @@ class User extends Authenticatable
 
     public function isLocked(): bool
     {
-        if (!$this->locked_until) {
+        if (! $this->locked_until) {
             return false;
         }
 
         if ($this->locked_until->isPast()) {
             $this->unlockAccount();
+
             return false;
         }
 
         return true;
     }
+
     public function getKey()
     {
         return $this->sId; // Use custom_id as the tokenable_id

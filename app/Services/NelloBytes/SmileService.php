@@ -11,10 +11,9 @@ class SmileService extends NelloBytesClient
     /**
      * Buy Smile bundle
      *
-     * @param string $customerId
-     * @param string $packageCode
-     * @param string $transactionRef
-     * @return array
+     * @param  string  $customerId
+     * @param  string  $packageCode
+     *
      * @throws NelloBytesApiException
      * @throws NelloBytesInsufficientBalanceException
      * @throws NelloBytesInvalidCustomerException
@@ -35,7 +34,7 @@ class SmileService extends NelloBytesClient
             'RequestID' => $transactionRef,
         ];
 
-        if (!empty($callbackUrl)) {
+        if (! empty($callbackUrl)) {
             $params['CallBackURL'] = $callbackUrl;
         }
 
@@ -45,8 +44,8 @@ class SmileService extends NelloBytesClient
     /**
      * Verify Smile customer
      *
-     * @param string $customerId
-     * @return array
+     * @param  string  $customerId
+     *
      * @throws NelloBytesApiException
      * @throws NelloBytesInvalidCustomerException
      */
@@ -65,7 +64,6 @@ class SmileService extends NelloBytesClient
     /**
      * Get Smile packages (cached for 24 hours)
      *
-     * @return array
      * @throws NelloBytesApiException
      */
     public function getPackages(): array
@@ -82,12 +80,9 @@ class SmileService extends NelloBytesClient
 
     /**
      * Clear Smile packages cache
-     *
-     * @return void
      */
     public function clearPackagesCache(): void
     {
         $this->clearCache('nellobytes:smile:packages');
     }
 }
-

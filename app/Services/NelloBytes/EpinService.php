@@ -10,12 +10,6 @@ class EpinService extends NelloBytesClient
     /**
      * Purchase airtime EPIN(s)
      *
-     * @param string $mobileNetwork
-     * @param int $value
-     * @param int $quantity
-     * @param string $transactionRef
-     * @param string|null $callbackUrl
-     * @return array
      * @throws NelloBytesApiException
      * @throws NelloBytesInsufficientBalanceException
      */
@@ -36,7 +30,7 @@ class EpinService extends NelloBytesClient
             'RequestID' => $transactionRef,
         ];
 
-        if (!empty($resolvedCallbackUrl)) {
+        if (! empty($resolvedCallbackUrl)) {
             $params['CallBackURL'] = $resolvedCallbackUrl;
         }
 
@@ -47,9 +41,6 @@ class EpinService extends NelloBytesClient
     /**
      * Query EPIN transaction status by RequestID or OrderID
      *
-     * @param string|null $requestId
-     * @param string|null $orderId
-     * @return array
      * @throws NelloBytesApiException
      * @throws NelloBytesInsufficientBalanceException
      */
@@ -71,7 +62,6 @@ class EpinService extends NelloBytesClient
     /**
      * Get EPIN discounts (cached for 24 hours)
      *
-     * @return array
      * @throws NelloBytesApiException
      */
     public function getDiscounts(): array
@@ -88,12 +78,9 @@ class EpinService extends NelloBytesClient
 
     /**
      * Clear EPIN discounts cache
-     *
-     * @return void
      */
     public function clearDiscountsCache(): void
     {
         $this->clearCache('nellobytes:epin:discounts');
     }
 }
-

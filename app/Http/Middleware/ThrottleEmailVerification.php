@@ -17,13 +17,13 @@ class ThrottleEmailVerification
     {
         $email = $request->input('email');
 
-        if (!$email) {
+        if (! $email) {
             return $next($request);
         }
 
         $user = User::where('sEmail', $email)->first();
 
-        if (!$user) {
+        if (! $user) {
             return $next($request);
         }
 
@@ -39,7 +39,7 @@ class ThrottleEmailVerification
             $resetAt = Carbon::now();
         }
 
-        if (!$resetAt) {
+        if (! $resetAt) {
             $resetAt = Carbon::now();
         }
 

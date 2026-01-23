@@ -8,7 +8,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\NelloBytes\BuySmileBundleRequest;
 use App\Http\Requests\NelloBytes\VerifySmileRequest;
 use App\Models\NelloBytesTransaction;
+use App\Models\PaystackTransaction; // [NEW]
+use App\Models\ApiConfig;
 use App\Services\NelloBytes\SmileService;
+use App\Services\Paystack\PaystackTransactionService; // [NEW]
+// Assuming needed or was implicit?
+use App\Services\Paystack\SmileService as PaystackSmileService; // [NEW]
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -21,19 +26,36 @@ class SmileController extends Controller
 
     protected SmileService $smileService;
 
-    public function __construct(SmileService $smileService)
-    {
+    protected PaystackSmileService $paystackSmileService; // [NEW]
+
+    protected PaystackTransactionService $paystackTransactionService; // [NEW]
+
+    public function __construct(
+        SmileService $smileService,
+        PaystackSmileService $paystackSmileService,
+        PaystackTransactionService $paystackTransactionService
+    ) {
         $this->smileService = $smileService;
+        $this->paystackSmileService = $paystackSmileService;
+        $this->paystackTransactionService = $paystackTransactionService;
     }
 
     /**
      * Get Smile packages
-     *
-     * @return JsonResponse
      */
     public function getPackages(): JsonResponse
     {
         try {
+            if ($this->isPaystackEnabled()) {
+                $response = $this->paystackSmileService->getPackages();
+                if (isset($response['data'])) {
+                    $packages = collect($response['data'])->map(function ($item) {
+                        return $item;
+                    });
+                }
+
+                return $this->ok('Smile packages retrieved successfully', $response);
+            }
             $packages = $this->smileService->getPackages();
 
             return $this->ok('Smile packages retrieved successfully', $packages);
@@ -49,9 +71,6 @@ class SmileController extends Controller
 
     /**
      * Verify Smile customer
-     *
-     * @param VerifySmileRequest $request
-     * @return JsonResponse
      */
     public function verify(VerifySmileRequest $request): JsonResponse
     {
@@ -59,6 +78,13 @@ class SmileController extends Controller
             $validated = $request->validated();
             $mobileNetwork = $validated['mobile_network'] ?? config('nellobytes.smile_default_network', 'smile-direct');
             $mobileNumber = $validated['mobile_number'] ?? $validated['customer_id'];
+
+            if ($this->isPaystackEnabled()) {
+                // Smile verification via Paystack
+                $result = $this->paystackSmileService->verifyCustomer($mobileNumber);
+
+                return $this->ok('Customer verified successfully', $result);
+            }
 
             $result = $this->smileService->verify($mobileNetwork, $mobileNumber);
 
@@ -80,9 +106,6 @@ class SmileController extends Controller
 
     /**
      * Buy Smile bundle
-     *
-     * @param BuySmileBundleRequest $request
-     * @return JsonResponse
      */
     public function buyBundle(BuySmileBundleRequest $request): JsonResponse
     {
@@ -92,6 +115,10 @@ class SmileController extends Controller
         // Verify PIN
         if ($user->sPin != $validated['pin']) {
             return $this->error('Incorrect PIN', 400);
+        }
+
+        if ($this->isPaystackEnabled()) {
+            return $this->buyBundlePaystack($validated, $user);
         }
 
         // Generate transaction reference
@@ -250,5 +277,104 @@ class SmileController extends Controller
 
         return null;
     }
-}
 
+    private function buyBundlePaystack($validated, $user)
+    {
+        $transactionRef = generateTransactionRef();
+
+        $transaction = PaystackTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => \App\Enums\PaystackServiceType::SMILE,
+            'transaction_ref' => $transactionRef,
+            'amount' => 0, // Placeholder
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $validated,
+        ]);
+
+        DB::beginTransaction();
+        try {
+            // Fetch amount from Paystack if possible
+            $packagesRes = $this->paystackSmileService->getPackages();
+            $packages = $packagesRes['data'] ?? [];
+
+            $amount = null;
+            foreach ($packages as $pkg) {
+                if (($pkg['code'] ?? '') === $validated['package_code']) {
+                    $amount = ($pkg['amount'] ?? 0) / 100;
+                    break;
+                }
+            }
+
+            if (!$amount) {
+                throw new \Exception('Invalid package code or unable to determine amount.');
+            }
+
+            $transaction->update(['amount' => $amount]);
+
+            $debit = debitWallet(
+                $user,
+                $amount,
+                'Smile Bundle Purchase (Paystack)',
+                sprintf(
+                    'Smile bundle for %s (%s)',
+                    $validated['customer_id'],
+                    $validated['package_code']
+                ),
+                0,
+                0,
+                $transactionRef,
+                false
+            );
+
+            $mobileNumber = $validated['mobile_number'] ?? $validated['customer_id'];
+
+            $result = $this->paystackSmileService->buyBundle(
+                planCode: $validated['package_code'],
+                customerId: $mobileNumber,
+                amount: $amount,
+                phoneNo: $user->sPhone,
+                email: $user->email
+            );
+
+            $this->paystackTransactionService->handleProviderResponse(
+                $result,
+                $transaction,
+                $user,
+                $amount
+            );
+
+            DB::commit();
+
+            return $this->ok('Smile bundle purchased successfully', [
+                'transaction_ref' => $transactionRef,
+                'paystack_ref' => $result['data']['reference'] ?? null,
+                'balance' => $debit['new_balance'],
+                'data' => $result,
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $transaction->update([
+                'status' => TransactionStatus::FAILED,
+                'response_payload' => ['error' => $e->getMessage()],
+            ]);
+            Log::error('Failed to buy smile (Paystack)', ['error' => $e->getMessage()]);
+
+            return $this->error($e->getMessage(), 500);
+        }
+    }
+
+    private function isPaystackEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'paystackStatus') === 'On' &&
+                getConfigValue($config, 'paystackSmileStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+}

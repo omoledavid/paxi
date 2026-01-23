@@ -7,11 +7,6 @@ class AirtimeService extends NelloBytesClient
     /**
      * Purchase airtime
      *
-     * @param string $networkCode
-     * @param string $phoneNumber
-     * @param float $amount
-     * @param string $transactionRef
-     * @return array
      * @throws \App\Exceptions\NelloBytesApiException
      * @throws \App\Exceptions\NelloBytesInsufficientBalanceException
      */
@@ -31,7 +26,7 @@ class AirtimeService extends NelloBytesClient
             'RequestID' => $transactionRef,
         ];
 
-        if (!empty($callbackUrl)) {
+        if (! empty($callbackUrl)) {
             $params['CallBackURL'] = $callbackUrl;
         }
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Webhook\NelloBytesController;
+use App\Http\Controllers\Webhook\VtpassController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -16,3 +17,5 @@ use Illuminate\Support\Facades\Route;
 Route::match(['get', 'post'], 'nellobytes', [NelloBytesController::class, 'handleWebhook'])
     ->name('webhooks.nellobytes');
 
+Route::match(['get', 'post'], 'vtpass', [VtpassController::class, 'handleWebhook'])
+    ->name('webhooks.vtpass');

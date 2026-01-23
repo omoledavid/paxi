@@ -11,40 +11,43 @@ use Illuminate\Http\Request;
 class GeneralController extends Controller
 {
     use ApiResponses;
+
     public function verifyNetwork(Request $request)
     {
         $request->validate([
             'network' => 'nullable|string',
-            'phone_number' => 'required|exists:subscribers,sPhone'
-        ],[
+            'phone_number' => 'required|exists:subscribers,sPhone',
+        ], [
             'phone_number.exists' => 'The phone number you entered does not exist in our records.',
         ]);
-        if(empty($request->network)){
+        if (empty($request->network)) {
             $network = '';
-        }else{
+        } else {
             $network = $request->network;
         }
         $data = verifyNetwork($request->phone_number, $network);
+
         return response()->json($data);
     }
+
     public function agent(Request $request)
     {
         $request->validate([
             'pin' => 'required',
         ]);
         $user = $request->user();
-        $tranRef =  generateTransactionRef();
+        $tranRef = generateTransactionRef();
 
-        if($request->pin != $user->sPin){
+        if ($request->pin != $user->sPin) {
             return $this->error('Incorrect pin');
         }
-        if($user->sType == AccountType::AGENT){
+        if ($user->sType == AccountType::AGENT) {
             return $this->error('You are already an agent');
         }
         $generalSetting = GeneralSetting::first();
         $agentUpgragePrice = $generalSetting->agentupgrade;
         $newBal = $user->sWallet - $agentUpgragePrice;
-        if($user->sWallet < $agentUpgragePrice){
+        if ($user->sWallet < $agentUpgragePrice) {
             return $this->error('Insufficient wallet balance');
         }
         try {
@@ -66,26 +69,28 @@ class GeneralController extends Controller
         } catch (\Throwable $th) {
             return $this->error($th->getMessage());
         }
+
         return $this->ok('Account upgraded successfully', $transaction);
     }
+
     public function vendor(Request $request)
     {
         $request->validate([
             'pin' => 'required',
         ]);
         $user = $request->user();
-        $tranRef =  generateTransactionRef();
+        $tranRef = generateTransactionRef();
 
-        if($request->pin != $user->sPin){
+        if ($request->pin != $user->sPin) {
             return $this->error('Incorrect pin');
         }
-        if($user->sType == AccountType::VENDOR){
+        if ($user->sType == AccountType::VENDOR) {
             return $this->error('You are already a vendor');
         }
         $generalSetting = GeneralSetting::first();
         $vendorUpgragePrice = $generalSetting->vendorupgrade;
         $newBal = $user->sWallet - $vendorUpgragePrice;
-        if($user->sWallet < $vendorUpgragePrice){
+        if ($user->sWallet < $vendorUpgragePrice) {
             return $this->error('Insufficient wallet balance');
         }
         try {
@@ -107,11 +112,14 @@ class GeneralController extends Controller
         } catch (\Throwable $th) {
             return $this->error($th->getMessage());
         }
+
         return $this->ok('Account upgraded successfully', $transaction);
     }
+
     public function supportInfo()
     {
         $generalSetting = GeneralSetting::first();
+
         return $this->ok('success', [
             'phone_number' => $generalSetting->phone,
             'email' => $generalSetting->email,
@@ -120,10 +128,12 @@ class GeneralController extends Controller
             'facebook' => $generalSetting->facebook,
         ]);
     }
+
     public function support()
     {
         return $this->ok('success', []);
     }
+
     public function settings()
     {
         return $this->ok('success', [

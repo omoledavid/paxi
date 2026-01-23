@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Http\Controllers\Api\V1\NelloBytes;
 
@@ -6,11 +6,9 @@ use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\NbDataPlan as ResourcesNbDataPlan;
-use App\Models\NbDataPlan;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\DataService;
 use App\Traits\ApiResponses;
-use Dflydev\DotAccessData\Data;
 use Illuminate\Support\Facades\DB;
 
 class DataController extends Controller
@@ -24,7 +22,7 @@ class DataController extends Controller
         $this->dataService = $dataService;
     }
 
-    function getDataplan()
+    public function getDataplan()
     {
         try {
             $dataplans = $this->dataService->getDataplan();
@@ -39,7 +37,8 @@ class DataController extends Controller
             return $this->error('Failed to retrieve data plans', 500, $e->getMessage());
         }
     }
-    function buyData()
+
+    public function buyData()
     {
         $request = request();
         $user = auth()->user();
@@ -69,7 +68,7 @@ class DataController extends Controller
                 serviceName: 'NelloBytes Data Purchase',
                 serviceDesc: 'Purchase of data plan via NelloBytes',
                 transactionRef: $transactionRef,
-                wrapInTransaction:false
+                wrapInTransaction: false
             );
             $response = $this->dataService->purchaseData(
                 $request->input('network_code'),

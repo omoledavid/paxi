@@ -9,8 +9,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
-require_once __DIR__ . '/wallet.php';
-
+require_once __DIR__.'/wallet.php';
 
 function apiKeyGen()
 {
@@ -23,7 +22,8 @@ function verificationCode($length)
     }
 
     $min = pow(10, $length - 1);
-    $max = (int) ($min - 1) . '9';
+    $max = (int) ($min - 1).'9';
+
     return random_int($min, $max);
 }
 function sendVerificationCode($code, $email, $subject = 'Account Verification')
@@ -40,7 +40,7 @@ function sendVerificationCode($code, $email, $subject = 'Account Verification')
  * Converts 234XXXXXXXXXX to 0XXXXXXXXXX
  * Removes all non-numeric characters
  *
- * @param string $phone The phone number to normalize
+ * @param  string  $phone  The phone number to normalize
  * @return string The normalized phone number
  */
 function normalizeNigerianPhone(string $phone): string
@@ -50,7 +50,7 @@ function normalizeNigerianPhone(string $phone): string
 
     // Convert 234 format to 0 format
     if (str_starts_with($phone, '234') && strlen($phone) === 13) {
-        $phone = '0' . substr($phone, 3);
+        $phone = '0'.substr($phone, 3);
     }
 
     return $phone;
@@ -59,22 +59,23 @@ function normalizeNigerianPhone(string $phone): string
 /**
  * Send SMS verification code via GatewayAPI
  *
- * @param string $code The verification code to send
- * @param string $phone The phone number in 0XXXXXXXXXX format
+ * @param  string  $code  The verification code to send
+ * @param  string  $phone  The phone number in 0XXXXXXXXXX format
  * @return bool True if SMS was sent successfully, false otherwise
  */
 function sendSmsVerificationCode(string $code, string $phone): bool
 {
     try {
-        $gatewayApi = new GatewayApiService();
+        $gatewayApi = new GatewayApiService;
         $result = $gatewayApi->sendVerificationCode($phone, $code);
 
         return $result['success'] ?? false;
     } catch (\Exception $exception) {
         \Illuminate\Support\Facades\Log::error('Failed to send SMS verification code', [
             'phone' => $phone,
-            'error' => $exception->getMessage()
+            'error' => $exception->getMessage(),
         ]);
+
         return false;
     }
 }
@@ -131,7 +132,8 @@ function verifyNetwork(string $phone, string $selectedNetwork = ''): array
 
 function generateTransactionRef()
 {
-    $tranId = rand(1000, 9999) . time();
+    $tranId = rand(1000, 9999).time();
+
     return $tranId;
 }
 
@@ -156,10 +158,10 @@ function validateMeterNumber($provider, $meternumber, $metertype, $apiKey)
         'Content-Type' => 'application/json',
         'Token' => "Token $apiKey",
     ])->post("$siteUrl/api838190/electricity/verify/", [
-                'provider' => $provider,
-                'meternumber' => $meternumber,
-                'metertype' => $metertype,
-            ]);
+        'provider' => $provider,
+        'meternumber' => $meternumber,
+        'metertype' => $metertype,
+    ]);
 
     $result = $response->json();
 
@@ -196,7 +198,7 @@ function TransactionLog(
 function gs($key = null)
 {
     $general = Cache::get('GeneralSetting');
-    if (!$general) {
+    if (! $general) {
         $general = GeneralSetting::first();
         Cache::put('GeneralSetting', $general);
     }

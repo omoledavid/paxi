@@ -6,18 +6,17 @@ use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\NelloBytes\PrintEpinRequest;
+use App\Mail\SendEpin;
 use App\Models\ApiConfig;
 use App\Models\Epin;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\EpinService;
 use App\Traits\ApiResponses;
-use App\Mail\SendEpin;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 
 class EpinController extends Controller
 {
@@ -32,8 +31,6 @@ class EpinController extends Controller
 
     /**
      * Get EPIN discounts
-     *
-     * @return JsonResponse
      */
     public function getDiscounts(): JsonResponse
     {
@@ -58,14 +55,14 @@ class EpinController extends Controller
                     $discountedAmount = $this->applyProductDiscount((float) $price, $networkId, $discounts);
                     $networkPrices[] = [
                         'amount' => $price,
-                        'payable' => $discountedAmount
+                        'payable' => $discountedAmount,
                     ];
                 }
 
                 $formattedDiscounts[] = [
                     'network' => $networkMap[$networkId] ?? 'Unknown',
                     'network_id' => $networkId,
-                    'prices' => $networkPrices
+                    'prices' => $networkPrices,
                 ];
             }
 
@@ -84,16 +81,13 @@ class EpinController extends Controller
 
     /**
      * Print EPIN recharge card
-     *
-     * @param PrintEpinRequest $request
-     * @return JsonResponse
      */
     public function printCard(PrintEpinRequest $request): JsonResponse
     {
         $user = auth()->user();
         $validated = $request->validated();
 
-        if (!$this->isNellobytesEnabled()) {
+        if (! $this->isNellobytesEnabled()) {
             return $this->error('NelloBytes is currently disabled', 400);
         }
 
@@ -243,9 +237,6 @@ class EpinController extends Controller
 
     /**
      * Query EPIN transaction by RequestID or OrderID
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function query(Request $request): JsonResponse
     {
@@ -265,13 +256,13 @@ class EpinController extends Controller
             );
 
             // Optionally update stored transaction if we find it by request_id
-            if (!empty($validated['request_id'])) {
+            if (! empty($validated['request_id'])) {
                 NelloBytesTransaction::where('transaction_ref', $validated['request_id'])
                     ->where('service_type', NelloBytesServiceType::EPIN)
                     ->latest()
                     ->first()?->update([
-                            'response_payload' => $result,
-                        ]);
+                        'response_payload' => $result,
+                    ]);
             }
 
             return $this->ok('EPIN transaction retrieved successfully', $result);
@@ -298,9 +289,6 @@ class EpinController extends Controller
 
     /**
      * Get EPIN purchase history
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function history(Request $request): JsonResponse
     {
@@ -331,9 +319,9 @@ class EpinController extends Controller
     /**
      * Apply product discount to amount based on mobile network
      *
-     * @param float $amount The original amount
-     * @param string $networkId The mobile network ID (01, 02, 03, 04)
-     * @param array $discountData The discount data from API
+     * @param  float  $amount  The original amount
+     * @param  string  $networkId  The mobile network ID (01, 02, 03, 04)
+     * @param  array  $discountData  The discount data from API
      * @return float The discounted amount
      */
     private function applyProductDiscount(float $amount, string $networkId, array $discountData): float
@@ -356,8 +344,9 @@ class EpinController extends Controller
                 'network_id' => $networkId,
                 'original_amount' => $amount,
                 'rate' => $customRates[$networkId],
-                'discounted_amount' => $discountedAmount
+                'discounted_amount' => $discountedAmount,
             ]);
+
             return $discountedAmount;
         }
 
@@ -373,23 +362,26 @@ class EpinController extends Controller
         // Get the network name from the ID
         $networkName = $networkMap[$networkId] ?? null;
 
-        if (!$networkName) {
+        if (! $networkName) {
             // If network not found, return original amount
             Log::warning('Unknown network ID for discount calculation', ['network_id' => $networkId]);
+
             return $amount;
         }
 
         // Check if discount data exists for this network
-        if (!isset($discountData['MOBILE_NETWORK'][$networkName])) {
+        if (! isset($discountData['MOBILE_NETWORK'][$networkName])) {
             Log::warning('No discount data found for network', ['network' => $networkName]);
+
             return $amount;
         }
 
         $networkDiscounts = $discountData['MOBILE_NETWORK'][$networkName];
 
         // Get the first discount entry (assuming one discount per network)
-        if (empty($networkDiscounts) || !isset($networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'])) {
+        if (empty($networkDiscounts) || ! isset($networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'])) {
             Log::warning('Invalid discount structure for network', ['network' => $networkName]);
+
             return $amount;
         }
 
@@ -423,4 +415,3 @@ class EpinController extends Controller
         return $enabled;
     }
 }
-

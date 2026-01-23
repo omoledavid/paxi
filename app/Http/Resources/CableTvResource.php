@@ -27,7 +27,7 @@ class CableTvResource extends JsonResource
                     ? $this->whenLoaded('plans')
                     : $this->plans
                 ),
-            ]
+            ],
         ];
     }
 }

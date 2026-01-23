@@ -40,4 +40,3 @@ class VerifySmileRequest extends FormRequest
         ];
     }
 }
-

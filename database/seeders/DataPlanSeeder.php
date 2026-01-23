@@ -200,8 +200,9 @@ class DataPlanSeeder extends Seeder
     {
         $networkId = $this->networkIds[$networkName] ?? null;
 
-        if (!$networkId) {
+        if (! $networkId) {
             $this->command->warn("Network ID not found for {$networkName}. Please update networkIds array.");
+
             return;
         }
 
@@ -223,6 +224,6 @@ class DataPlanSeeder extends Seeder
             );
         }
 
-        $this->command->info("Seeded " . count($plans) . " plans for {$networkName}");
+        $this->command->info('Seeded '.count($plans)." plans for {$networkName}");
     }
 }

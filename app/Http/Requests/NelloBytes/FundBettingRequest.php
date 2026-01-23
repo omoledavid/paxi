@@ -48,4 +48,3 @@ class FundBettingRequest extends FormRequest
         ];
     }
 }
-

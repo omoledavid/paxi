@@ -9,4 +9,3 @@ class NelloBytesApiException extends NelloBytesException
         parent::__construct($message, $errorCode, $errorData, $httpCode);
     }
 }
-

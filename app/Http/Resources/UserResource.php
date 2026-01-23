@@ -34,23 +34,23 @@ class UserResource extends JsonResource
                 'banks' => [
                     [
                         'name' => 'Wema Bank',
-                        'account_no' => $this->sBankNo
+                        'account_no' => $this->sBankNo,
                     ],
                     [
                         'name' => 'Rolex Bank',
-                        'account_no' => $this->sRolexBank
+                        'account_no' => $this->sRolexBank,
                     ],
                     [
                         'name' => 'Sterling Bank',
-                        'account_no' => $this->sSterlingBank
+                        'account_no' => $this->sSterlingBank,
                     ],
                     [
                         'name' => 'Fidelity Bank',
-                        'account_no' => $this->sFidelityBank
+                        'account_no' => $this->sFidelityBank,
                     ],
                 ],
                 'created_at' => $this->sRegDate,
-            ]
+            ],
         ];
     }
 }

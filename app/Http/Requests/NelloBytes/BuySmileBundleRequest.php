@@ -46,4 +46,3 @@ class BuySmileBundleRequest extends FormRequest
         ];
     }
 }
-

@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Services\NelloBytes;
 
@@ -7,7 +7,6 @@ class ElectricityService extends NelloBytesClient
     /**
      * Get electricity providers
      *
-     * @return array
      * @throws \App\Exceptions\NelloBytesApiException
      */
     public function getProviders(): array
@@ -16,15 +15,10 @@ class ElectricityService extends NelloBytesClient
 
         return $this->makeRequest($endpoint, [], 'GET');
     }
+
     /**
      * Purchase electricity
      *
-     * @param string $providerCode
-     * @param string $meterNumber
-     * @param float $amount
-     * @param string $transactionRef
-     * @param string $meterType
-     * @return array
      * @throws \App\Exceptions\NelloBytesApiException
      * @throws \App\Exceptions\NelloBytesInsufficientBalanceException
      */
@@ -44,12 +38,13 @@ class ElectricityService extends NelloBytesClient
             'MeterType' => $meterType,
             'MeterNo' => $meterNumber,
             'Amount' => $amount,
-            'PhoneNo' =>$phoneNumber,
+            'PhoneNo' => $phoneNumber,
             'callback_url' => $callbackUrl,
         ];
 
         return $this->makeRequest($endpoint, $payload, 'POST');
     }
+
     public function VeryMeterNumber(string $providerCode, string $meterNumber, string $meterType): array
     {
         $endpoint = config('nellobytes.endpoints.electricity.verify');
@@ -62,6 +57,7 @@ class ElectricityService extends NelloBytesClient
 
         return $this->makeRequest($endpoint, $payload, 'POST');
     }
+
     public function getElectricityProviders(): array
     {
         $endpoint = config('nellobytes.endpoints.electricity.providers');

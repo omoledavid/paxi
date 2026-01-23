@@ -31,17 +31,22 @@ class AppServiceProvider extends ServiceProvider
             $this->app['config']->set('app.debug', true);
         }
 
-        try{
-            if(Schema::hasTable('apiconfigs')){
+        try {
+            if (Schema::hasTable('apiconfigs')) {
                 config([
                     'nellobytes.base_url' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesBaseUrl'),
                     'nellobytes.user_id' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesUserId'),
                     'nellobytes.api_key' => getConfigValue(\App\Models\ApiConfig::all(), 'nellobytesApi'),
+                    // VTpass Config
+                    // Mapping Database keys to VTpass Client expected config keys
+                    'vtpass.api_key' => getConfigValue(\App\Models\ApiConfig::all(), 'vtApiKey'),
+                    'vtpass.secret_key' => getConfigValue(\App\Models\ApiConfig::all(), 'vtSecretKey'),
+                    'vtpass.public_key' => getConfigValue(\App\Models\ApiConfig::all(), 'vtPublicKey'),
                 ]);
             }
 
-        }catch(\Exception $e){
-            //log error
+        } catch (\Exception $e) {
+            // log error
         }
 
         // Force HTTPS in production

@@ -14,8 +14,11 @@ class SendElectricityToken extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     public $token;
+
     public $amount;
+
     public $meterNo;
+
     public $transactionRef;
 
     /**

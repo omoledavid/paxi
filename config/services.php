@@ -40,4 +40,18 @@ return [
         'sender' => env('GATEWAYAPI_SENDER', 'Paxi'),
     ],
 
+    'smile_identity' => [
+        'partner_id' => env('SMILE_IDENTITY_PARTNER_ID'),
+        'api_key' => env('SMILE_IDENTITY_API_KEY'),
+        'callback_secret' => env('SMILE_IDENTITY_CALLBACK_SECRET'), // Signature key
+        'callback_url' => env('SMILE_IDENTITY_CALLBACK_URL'),
+        'env' => env('SMILE_IDENTITY_ENV', 'sandbox'), // sandbox or production
+    ],
+
+    'paystack' => [
+        'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        'payment_url' => env('PAYSTACK_PAYMENT_URL', 'https://api.paystack.co'),
+    ],
+
 ];

@@ -11,10 +11,6 @@ class SpectranetService extends NelloBytesClient
     /**
      * Buy Spectranet bundle
      *
-     * @param string $customerId
-     * @param string $packageCode
-     * @param string $transactionRef
-     * @return array
      * @throws NelloBytesApiException
      * @throws NelloBytesInsufficientBalanceException
      * @throws NelloBytesInvalidCustomerException
@@ -35,7 +31,6 @@ class SpectranetService extends NelloBytesClient
     /**
      * Get Spectranet packages (cached for 24 hours)
      *
-     * @return array
      * @throws NelloBytesApiException
      */
     public function getPackages(): array
@@ -52,12 +47,9 @@ class SpectranetService extends NelloBytesClient
 
     /**
      * Clear Spectranet packages cache
-     *
-     * @return void
      */
     public function clearPackagesCache(): void
     {
         $this->clearCache('nellobytes:spectranet:packages');
     }
 }
-

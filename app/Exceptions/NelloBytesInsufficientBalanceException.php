@@ -9,4 +9,3 @@ class NelloBytesInsufficientBalanceException extends NelloBytesApiException
         parent::__construct($message, 'INSUFFICIENT_WALLET_BALANCE', $errorData, 402);
     }
 }
-

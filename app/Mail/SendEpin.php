@@ -3,7 +3,6 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -14,6 +13,7 @@ class SendEpin extends Mailable
     use Queueable, SerializesModels;
 
     public $epins;
+
     public $transactionRef;
 
     /**
@@ -31,7 +31,7 @@ class SendEpin extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your EPIN Purchase Successful - ' . $this->transactionRef,
+            subject: 'Your EPIN Purchase Successful - '.$this->transactionRef,
         );
     }
 

@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class CableTv extends Model
 {
     protected $primaryKey = 'cId';
+
     protected $table = 'cableid';
 
     public function plans()
     {
-        return $this->hasMany(CablePlan::class,'cableprovider','cId');
+        return $this->hasMany(CablePlan::class, 'cableprovider', 'cId');
     }
 }

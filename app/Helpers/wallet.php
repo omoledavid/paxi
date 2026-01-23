@@ -3,7 +3,7 @@
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
-if (!function_exists('getWalletBalance')) {
+if (! function_exists('getWalletBalance')) {
     /**
      * Return the user's wallet balance.
      */
@@ -17,7 +17,7 @@ if (!function_exists('getWalletBalance')) {
     }
 }
 
-if (!function_exists('debitWallet')) {
+if (! function_exists('debitWallet')) {
     /**
      * Debit the user's wallet and log the transaction.
      *
@@ -49,7 +49,7 @@ if (!function_exists('debitWallet')) {
     }
 }
 
-if (!function_exists('creditWallet')) {
+if (! function_exists('creditWallet')) {
     /**
      * Credit the user's wallet and log the transaction.
      *
@@ -81,7 +81,7 @@ if (!function_exists('creditWallet')) {
     }
 }
 
-if (!function_exists('mutateWallet')) {
+if (! function_exists('mutateWallet')) {
     /**
      * Core wallet mutation logic used by debit/credit helpers.
      *
@@ -110,7 +110,7 @@ if (!function_exists('mutateWallet')) {
                 ? User::where('sId', $user->sId)->lockForUpdate()->first()
                 : ($user->exists ? $user : User::where('sId', $user->sId)->first());
 
-            if (!$workingUser) {
+            if (! $workingUser) {
                 throw new RuntimeException('User not found for wallet mutation');
             }
 

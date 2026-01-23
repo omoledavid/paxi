@@ -11,11 +11,6 @@ class BettingService extends NelloBytesClient
     /**
      * Fund a betting account
      *
-     * @param string $companyCode
-     * @param string $customerId
-     * @param float $amount
-     * @param string $transactionRef
-     * @return array
      * @throws NelloBytesApiException
      * @throws NelloBytesInsufficientBalanceException
      * @throws NelloBytesInvalidCustomerException
@@ -36,7 +31,7 @@ class BettingService extends NelloBytesClient
             'RequestID' => $transactionRef,
         ];
 
-        if (!empty($callbackUrl)) {
+        if (! empty($callbackUrl)) {
             $params['CallBackURL'] = $callbackUrl;
         }
 
@@ -46,9 +41,6 @@ class BettingService extends NelloBytesClient
     /**
      * Verify betting customer
      *
-     * @param string $companyCode
-     * @param string $customerId
-     * @return array
      * @throws NelloBytesApiException
      * @throws NelloBytesInvalidCustomerException
      */
@@ -67,7 +59,6 @@ class BettingService extends NelloBytesClient
     /**
      * Get betting companies (cached for 24 hours)
      *
-     * @return array
      * @throws NelloBytesApiException
      */
     public function getCompanies(): array
@@ -84,12 +75,9 @@ class BettingService extends NelloBytesClient
 
     /**
      * Clear betting companies cache
-     *
-     * @return void
      */
     public function clearCompaniesCache(): void
     {
         $this->clearCache('nellobytes:betting:companies');
     }
 }
-

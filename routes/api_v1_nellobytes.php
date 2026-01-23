@@ -47,16 +47,15 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::post('buy', [SpectranetController::class, 'buyBundle']);
     });
 
-    //Data
+    // Data
     Route::prefix('data')->group(function () {
         Route::get('dataplan', [DataController::class, 'getDataplan']);
         Route::post('buy', [DataController::class, 'buyData']);
     });
 
-    //Electricity
+    // Electricity
     Route::prefix('electricity')->group(function () {
         Route::get('providers', [ElectricityController::class, 'getProviders']);
         Route::post('buy', [ElectricityController::class, 'buyElectricity']);
     });
 });
-

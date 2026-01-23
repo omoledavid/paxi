@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
+
 use function Pest\Laravel\getJson;
 
 uses()->group('idle-timeout');
@@ -51,7 +52,6 @@ it('expires tokens inactive for longer than the idle timeout', function () {
         'last_used_at' => now()->subMinutes(40),
     ])->save();
 
-
     $response = getJson('/api/idle-probe', [
         'Authorization' => 'Bearer '.$plainToken,
     ]);
@@ -87,4 +87,3 @@ it('keeps active tokens alive and refreshes last_used_at', function () {
 
     expect($tokenModel->last_used_at->greaterThan(now()->subMinute()))->toBeTrue();
 });
-

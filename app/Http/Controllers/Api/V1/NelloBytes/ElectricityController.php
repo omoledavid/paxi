@@ -1,12 +1,15 @@
-<?php 
+<?php
+
 namespace App\Http\Controllers\Api\V1\NelloBytes;
 
 use App\Services\NelloBytes\ElectricityService;
 use App\Traits\ApiResponses;
+use App\Models\ApiConfig; // [NEW]
 
 class ElectricityController
 {
     use ApiResponses;
+
     protected ElectricityService $electricityService;
 
     public function __construct(ElectricityService $electricityService)
@@ -14,7 +17,7 @@ class ElectricityController
         $this->electricityService = $electricityService;
     }
 
-    function getProviders()
+    public function getProviders()
     {
         try {
             $providers = $this->electricityService->getProviders();
@@ -30,7 +33,7 @@ class ElectricityController
         }
     }
 
-    function buyElectricity()
+    public function buyElectricity()
     {
         $request = request();
         $user = auth()->user();
@@ -44,5 +47,19 @@ class ElectricityController
         // Implementation for buying electricity will go here
 
         return $this->ok('Electricity purchase functionality is under development.');
+    }
+
+    private function isPaystackEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'paystackStatus') === 'On' &&
+                getConfigValue($config, 'paystackElectricityStatus') === 'On';
+        }
+
+        return $enabled;
     }
 }

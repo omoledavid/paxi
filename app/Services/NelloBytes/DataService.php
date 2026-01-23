@@ -7,14 +7,14 @@ use Illuminate\Database\Eloquent\Collection;
 
 class DataService extends NelloBytesClient
 {
-
     /**
      * Get available data plans
      *
      * @return array
+     *
      * @throws \App\Exceptions\NelloBytesApiException
      */
-    public function getDataplan(): Collection   
+    public function getDataplan(): Collection
     {
         $dataplans = NbDataPlan::all();
 
@@ -24,11 +24,6 @@ class DataService extends NelloBytesClient
     /**
      * Purchase data
      *
-     * @param string $networkCode
-     * @param string $dataCode
-     * @param string $phoneNumber
-     * @param string $transactionRef
-     * @return array
      * @throws \App\Exceptions\NelloBytesApiException
      * @throws \App\Exceptions\NelloBytesInsufficientBalanceException
      */
@@ -48,7 +43,7 @@ class DataService extends NelloBytesClient
             'RequestID' => $transactionRef,
         ];
 
-        if (!empty($callbackUrl)) {
+        if (! empty($callbackUrl)) {
             $params['CallBackURL'] = $callbackUrl;
         }
 

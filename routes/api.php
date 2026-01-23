@@ -10,10 +10,14 @@ use App\Http\Controllers\DataController;
 use App\Http\Controllers\ElectricityController;
 use App\Http\Controllers\ExamCardController;
 use App\Http\Controllers\GeneralController;
+use App\Http\Controllers\KycController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\Api\V1\Vtpass\AirtimeController as VtpassAirtimeController;
+use App\Http\Controllers\Api\V1\Vtpass\DataController as VtpassDataController;
+use App\Http\Controllers\Api\V1\Vtpass\TvController as VtpassTvController;
+use App\Http\Controllers\Api\V1\Vtpass\SmileController as VtpassSmileController;
+use App\Http\Controllers\Api\V1\Vtpass\SpectranetController as VtpassSpectranetController;
 use Illuminate\Support\Facades\Route;
-
-
 
 Route::controller(AuthController::class)->group(function () {
     Route::post('/register', 'register');
@@ -34,27 +38,27 @@ Route::post('change-phone', [UserController::class, 'changePhoneNumber'])->middl
 
 Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('logout', AuthController::class . '@logout');
-    //authorization
+    // authorization
     Route::controller(AuthorizationController::class)->group(function () {
         Route::get('authorization', 'authorization');
     });
-    //User
+    // User
     Route::apiResource('user', UserController::class);
     Route::post('wallet-transfer', [UserController::class, 'walletTransfer']);
-    //Transactions
+    // Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
-    //Change password
+    // Change password
     Route::post('changepass', UserController::class . '@changePassword');
     Route::post('changepin', UserController::class . '@changePin');
 
-    //Data
+    // Data
     Route::controller(DataController::class)->group(function () {
         Route::prefix('data')->group(function () {
             Route::get('/', 'data');
             Route::post('/', 'purchaseData');
         });
     });
-    //Electricity
+    // Electricity
     Route::controller(ElectricityController::class)->group(function () {
         Route::prefix('electricity')->group(function () {
             Route::get('/', 'index');
@@ -63,14 +67,14 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
             Route::post('/verify-meter', 'verifyMeterNo');
         });
     });
-    //Airtime
+    // Airtime
     Route::controller(AirtimeController::class)->group(function () {
         Route::prefix('airtime')->group(function () {
             Route::get('/', 'index');
             Route::post('/', 'purchaseAirtime');
         });
     });
-    //Tv cable
+    // Tv cable
     Route::controller(CableTvController::class)->group(function () {
         Route::prefix('cable')->group(function () {
             Route::get('/', 'index');
@@ -78,13 +82,14 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
             Route::post('/verify', 'verifyIUC');
         });
     });
-    //Exam Card
+    // Exam Card
     Route::controller(ExamCardController::class)->group(function () {
         Route::prefix('exam-card')->group(function () {
             Route::get('/', 'index');
             Route::post('/', 'purchaseExamCardPin');
         });
     });
+    // Settings
     Route::controller(GeneralController::class)->group(function () {
         Route::post('verify-network', 'verifyNetwork');
         Route::post('agent', 'agent');
@@ -93,4 +98,27 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::post('support', 'support');
         Route::get('settings', 'settings');
     });
+
+    // KYC
+    Route::get('kyc/status/{job_id}', [KycController::class, 'status']);
+
+    // VTpass Integration
+    Route::prefix('vtpass')->group(function () {
+        // Airtime (Refactored to existing controller)
+        // Data (Refactored to existing controller)
+        // TV Subscription (Refactored to existing controller)
+
+        // Smile
+        Route::post('smile/verify', [VtpassSmileController::class, 'verify']);
+        Route::get('smile/bundles', [VtpassSmileController::class, 'getBundles']);
+        Route::post('smile/purchase', [VtpassSmileController::class, 'purchase']);
+
+        // Spectranet
+        Route::post('spectranet/verify', [VtpassSpectranetController::class, 'verify']);
+        Route::get('spectranet/bundles', [VtpassSpectranetController::class, 'getBundles']);
+        Route::post('spectranet/purchase', [VtpassSpectranetController::class, 'purchase']);
+    });
 });
+
+// Webhooks (Public but Signed)
+Route::post('webhooks/smile-identity', [KycController::class, 'handleWebhook']);

@@ -15,16 +15,16 @@ use Illuminate\Support\Facades\Log;
 class UserController extends Controller
 {
     use ApiResponses;
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
         $user = auth()->user();
+
         return $this->ok('success', new UserResource($user));
     }
-
-
 
     /**
      * Store a newly created resource in storage.
@@ -42,7 +42,6 @@ class UserController extends Controller
         //
     }
 
-
     /**
      * Update the specified resource in storage.
      */
@@ -54,7 +53,7 @@ class UserController extends Controller
         $validatedData = $request->validate([
             'fname' => 'nullable|string',
             'lname' => 'nullable|string',
-            'phone' => ['nullable', new NigerianPhone()],
+            'phone' => ['nullable', new NigerianPhone],
             'state' => 'nullable|string',
         ]);
 
@@ -64,7 +63,7 @@ class UserController extends Controller
             'sLname' => $validatedData['lname'] ?? $user->sLname,
             'sPhone' => isset($validatedData['phone']) ? NigerianPhone::normalize($validatedData['phone']) : $user->sPhone,
             'sState' => $validatedData['state'] ?? $user->sState,
-        ], fn($value) => !is_null($value)); // This prevents null values from overriding existing data
+        ], fn ($value) => ! is_null($value)); // This prevents null values from overriding existing data
 
         $user->update($updateData);
 
@@ -83,11 +82,13 @@ class UserController extends Controller
         if ($oldPassword == $user->sPass) {
             $user->sPass = passwordHash($validatedData['new_password']);
             $user->save();
+
             return $this->ok('Password changed successfully');
         } else {
             return $this->error('Incorrect password');
         }
     }
+
     public function changePin(Request $request)
     {
         $user = auth()->user();
@@ -98,6 +99,7 @@ class UserController extends Controller
         if ($validatedData['old_pin'] == $user->sPin) {
             $user->sPin = $validatedData['new_pin'];
             $user->save();
+
             return $this->ok('Pin changed successfully');
         } else {
             return $this->error('Incorrect Pin');
@@ -115,7 +117,7 @@ class UserController extends Controller
 
         // Validate the new phone number
         $validatedData = $request->validate([
-            'new_phone' => ['required', new NigerianPhone(), 'unique:subscribers,sPhone'],
+            'new_phone' => ['required', new NigerianPhone, 'unique:subscribers,sPhone'],
         ], [
             'new_phone.unique' => 'This phone number is already in use.',
         ]);
@@ -132,7 +134,6 @@ class UserController extends Controller
         return $this->ok('Phone number updated successfully. Please verify your new number.', new UserResource($user));
     }
 
-
     /**
      * Remove the specified resource from storage.
      */
@@ -140,6 +141,7 @@ class UserController extends Controller
     {
         //
     }
+
     public function walletTransfer(Request $request)
     {
         // 1. Add CSRF protection (Laravel includes this middleware by default)
@@ -155,7 +157,7 @@ class UserController extends Controller
             'pin' => 'required|digits:4|int',
         ], [
             'email.exists' => 'This email does not exist in our records',
-            'amount.max' => 'Transfer amount exceeds maximum allowed limit'
+            'amount.max' => 'Transfer amount exceeds maximum allowed limit',
         ]);
 
         // 3. Additional validation checks
@@ -173,13 +175,15 @@ class UserController extends Controller
 
             if ($senderOldBal < $validatedData['amount']) {
                 DB::rollBack();
+
                 return $this->error('Insufficient wallet balance');
             }
 
             // 6. Lock the receiver's record as well to prevent race conditions
             $receiver = User::where('sEmail', $validatedData['email'])->lockForUpdate()->first();
-            if (!$receiver) {
+            if (! $receiver) {
                 DB::rollBack();
+
                 return $this->error('Recipient not found');
             }
 
@@ -191,6 +195,7 @@ class UserController extends Controller
             // Sanity check for negative values
             if ($netAmount <= 0) {
                 DB::rollBack();
+
                 return $this->error('Transfer amount too small to cover charges');
             }
 
@@ -199,7 +204,7 @@ class UserController extends Controller
 
             // 7. Prepare sanitized descriptions for transaction logs
             $senderDesc = sprintf(
-                "Wallet Transfer: Sent %s to %s. Fee: %s. New Balance: %s.",
+                'Wallet Transfer: Sent %s to %s. Fee: %s. New Balance: %s.',
                 number_format($transferAmount, 2),
                 htmlspecialchars($validatedData['email']),
                 number_format($chargeAmount, 2),
@@ -207,7 +212,7 @@ class UserController extends Controller
             );
 
             $receiverDesc = sprintf(
-                "Wallet Transfer: Received %s from %s. Fee: %s. New Balance: %s.",
+                'Wallet Transfer: Received %s from %s. Fee: %s. New Balance: %s.',
                 number_format($netAmount, 2),
                 htmlspecialchars($user->sEmail),
                 number_format($chargeAmount, 2),
@@ -245,15 +250,15 @@ class UserController extends Controller
             // 11. Return minimal information in the response
             return $this->ok('Transfer completed successfully', [
                 'balance' => $senderResult['user']->sWallet,
-                'transaction_id' => $senderResult['transaction_ref']
+                'transaction_id' => $senderResult['transaction_ref'],
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
 
             // 12. Log the exception but don't expose details to the user
-            Log::error('Wallet transfer failed: ' . $e->getMessage(), [
+            Log::error('Wallet transfer failed: '.$e->getMessage(), [
                 'user_id' => $user->sId,
-                'request' => $request->except(['pin'])
+                'request' => $request->except(['pin']),
             ]);
 
             return $this->error('Transaction failed. Please try again later.');

@@ -54,4 +54,3 @@ class PrintEpinRequest extends FormRequest
         ];
     }
 }
-

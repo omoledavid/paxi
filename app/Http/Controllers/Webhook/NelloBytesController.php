@@ -13,9 +13,6 @@ class NelloBytesController extends Controller
     /**
      * Handle NelloBytes webhook callback
      * Accepts both query string and JSON payloads
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function handleWebhook(Request $request): JsonResponse
     {
@@ -31,7 +28,7 @@ class NelloBytesController extends Controller
 
             // Validate webhook signature if secret is configured
             if (config('nellobytes.webhook_secret')) {
-                if (!$this->validateSignature($request, $payload)) {
+                if (! $this->validateSignature($request, $payload)) {
                     Log::warning('NelloBytes webhook signature validation failed', [
                         'payload' => $payload,
                     ]);
@@ -59,23 +56,20 @@ class NelloBytesController extends Controller
 
     /**
      * Extract payload from request (query string or JSON)
-     *
-     * @param Request $request
-     * @return array
      */
     protected function extractPayload(Request $request): array
     {
         // Try JSON body first
         if ($request->isJson() && $request->getContent()) {
             $json = $request->json()->all();
-            if (!empty($json)) {
+            if (! empty($json)) {
                 return $json;
             }
         }
 
         // Fall back to query string
         $query = $request->query->all();
-        if (!empty($query)) {
+        if (! empty($query)) {
             return $query;
         }
 
@@ -85,23 +79,19 @@ class NelloBytesController extends Controller
 
     /**
      * Validate webhook signature
-     *
-     * @param Request $request
-     * @param array $payload
-     * @return bool
      */
     protected function validateSignature(Request $request, array $payload): bool
     {
         $secret = config('nellobytes.webhook_secret');
-        if (!$secret) {
+        if (! $secret) {
             return true; // No secret configured, skip validation
         }
 
-        $signature = $request->header('X-NelloBytes-Signature') 
+        $signature = $request->header('X-NelloBytes-Signature')
             ?? $request->header('NelloBytes-Signature')
             ?? $request->input('signature');
 
-        if (!$signature) {
+        if (! $signature) {
             return false;
         }
 
@@ -117,4 +107,3 @@ class NelloBytesController extends Controller
         return hash_equals($expectedSignature, $signature);
     }
 }
-
