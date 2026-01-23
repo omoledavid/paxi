@@ -17,7 +17,7 @@ return new class extends Migration {
         Schema::create('vtpass_transactions', function (Blueprint $table) {
             $table->engine = 'InnoDB';
             $table->bigIncrements('id');
-            $table->unsignedInteger('user_id');
+            $table->integer('user_id');
             $table->string('service_type'); // airtime, data, tv-subscription, education, electricity
             $table->string('transaction_ref')->unique();
             $table->string('vtpass_ref')->nullable(); // RequestId from VTpass
