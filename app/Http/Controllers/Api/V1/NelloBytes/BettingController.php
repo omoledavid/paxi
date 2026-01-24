@@ -4,16 +4,20 @@ namespace App\Http\Controllers\Api\V1\NelloBytes;
 
 use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
+use App\Enums\VtuAfricaServiceType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\NelloBytes\FundBettingRequest;
 use App\Http\Requests\NelloBytes\VerifyBettingCustomerRequest;
 use App\Models\ApiConfig;
 use App\Models\NelloBytesTransaction;
-use App\Models\PaystackTransaction; // [NEW]
+use App\Models\PaystackTransaction;
+use App\Models\VtuAfricaTransaction;
 use App\Services\NelloBytes\BettingService;
-use App\Services\NelloBytes\NelloBytesTransactionService; // [NEW]
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Paystack\BettingService as PaystackBettingService;
-use App\Services\Paystack\PaystackTransactionService; // [NEW]
+use App\Services\Paystack\PaystackTransactionService;
+use App\Services\VtuAfrica\BettingService as VtuAfricaBettingService;
+use App\Services\VtuAfrica\VtuAfricaTransactionService;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -26,22 +30,30 @@ class BettingController extends Controller
 
     protected BettingService $bettingService;
 
-    protected PaystackBettingService $paystackBettingService; // [NEW]
+    protected PaystackBettingService $paystackBettingService;
+
+    protected VtuAfricaBettingService $vtuAfricaBettingService;
 
     protected NelloBytesTransactionService $nelloBytesTransactionService;
 
-    protected PaystackTransactionService $paystackTransactionService; // [NEW]
+    protected PaystackTransactionService $paystackTransactionService;
+
+    protected VtuAfricaTransactionService $vtuAfricaTransactionService;
 
     public function __construct(
         BettingService $bettingService,
         NelloBytesTransactionService $nelloBytesTransactionService,
-        PaystackBettingService $paystackBettingService, // [NEW]
-        PaystackTransactionService $paystackTransactionService // [NEW]
+        PaystackBettingService $paystackBettingService,
+        PaystackTransactionService $paystackTransactionService,
+        VtuAfricaBettingService $vtuAfricaBettingService,
+        VtuAfricaTransactionService $vtuAfricaTransactionService
     ) {
         $this->bettingService = $bettingService;
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
-        $this->paystackBettingService = $paystackBettingService; // [NEW]
-        $this->paystackTransactionService = $paystackTransactionService; // [NEW]
+        $this->paystackBettingService = $paystackBettingService;
+        $this->paystackTransactionService = $paystackTransactionService;
+        $this->vtuAfricaBettingService = $vtuAfricaBettingService;
+        $this->vtuAfricaTransactionService = $vtuAfricaTransactionService;
     }
 
     /**
@@ -50,16 +62,19 @@ class BettingController extends Controller
     public function getCompanies(): JsonResponse
     {
         try {
+            // Priority: VTU Africa -> Paystack -> NelloBytes
+            if ($this->isVtuAfricaEnabled()) {
+                $companies = $this->vtuAfricaBettingService->getCompanies();
+
+                return $this->ok('Betting companies retrieved successfully', $companies);
+            }
+
             if ($this->isPaystackEnabled()) {
                 $companies = $this->paystackBettingService->getProviders();
 
-                // Map Paystack response to NelloBytes structure if needed
-                // Assuming NelloBytes returns list of companies.
-                // Paystack returns {data: [{name: '...', ...}]}
-                // We'll return it as is or mapped if we knew NelloBytes structure.
-                // NelloBytes `getCompanies` returns array.
                 return $this->ok('Betting companies retrieved successfully', $companies);
             }
+
             $companies = $this->bettingService->getCompanies();
 
             return $this->ok('Betting companies retrieved successfully', $companies);
@@ -80,6 +95,16 @@ class BettingController extends Controller
     {
         try {
             $validated = $request->validated();
+
+            // Priority: VTU Africa -> Paystack -> NelloBytes
+            if ($this->isVtuAfricaEnabled()) {
+                $result = $this->vtuAfricaBettingService->verifyCustomer(
+                    $validated['company_code'],
+                    $validated['customer_id']
+                );
+
+                return $this->ok('Customer verified successfully', $result);
+            }
 
             if ($this->isPaystackEnabled()) {
                 $result = $this->paystackBettingService->validateCustomer(
@@ -114,15 +139,22 @@ class BettingController extends Controller
      */
     public function fund(FundBettingRequest $request): JsonResponse
     {
-        if (! $this->isNellobytesEnabled()) {
+        // Check if any betting service is enabled
+        if (!$this->isVtuAfricaEnabled() && !$this->isPaystackEnabled() && !$this->isNellobytesEnabled()) {
             return $this->error('Betting Service currently disabled');
         }
+
         $user = auth()->user();
         $validated = $request->validated();
 
         // Verify PIN
         if ($user->sPin != $validated['pin']) {
             return $this->error('Incorrect PIN', 400);
+        }
+
+        // Priority: VTU Africa -> Paystack -> NelloBytes
+        if ($this->isVtuAfricaEnabled()) {
+            return $this->fundVtuAfrica($validated, $user);
         }
 
         if ($this->isPaystackEnabled()) {
@@ -320,5 +352,95 @@ class BettingController extends Controller
         }
 
         return $enabled;
+    }
+
+    private function isVtuAfricaEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'vtuAfricaStatus') === 'On' &&
+                getConfigValue($config, 'vtuAfricaBettingStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+
+    private function fundVtuAfrica(array $validated, $user): JsonResponse
+    {
+        $transactionRef = generateTransactionRef();
+
+        // Remove sensitive data from request payload before storing
+        $requestPayload = $validated;
+        unset($requestPayload['pin']);
+
+        // Create VTU Africa transaction
+        $transaction = VtuAfricaTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => VtuAfricaServiceType::BETTING,
+            'transaction_ref' => $transactionRef,
+            'amount' => $validated['amount'],
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $requestPayload,
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $debit = debitWallet(
+                $user,
+                (float) $validated['amount'],
+                'Betting Funding (VTU Africa)',
+                sprintf(
+                    'Betting funding for %s (%s)',
+                    $validated['customer_id'],
+                    $validated['company_code']
+                ),
+                0,
+                0,
+                $transactionRef,
+                false
+            );
+
+            $result = $this->vtuAfricaBettingService->fund(
+                $validated['company_code'],
+                $validated['customer_id'],
+                (float) $validated['amount'],
+                $transactionRef,
+                $user->sPhone ?? null
+            );
+
+            $this->vtuAfricaTransactionService->handleProviderResponse(
+                $result['raw_response'] ?? $result,
+                $transaction,
+                $user,
+                (float) $validated['amount']
+            );
+
+            DB::commit();
+
+            return $this->ok('Betting account funded successfully', [
+                'transaction_ref' => $transactionRef,
+                'vtuafrica_ref' => $result['reference'] ?? null,
+                'balance' => $debit['new_balance'],
+                'data' => $result,
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $transaction->update([
+                'status' => TransactionStatus::FAILED,
+                'error_message' => $e->getMessage(),
+                'response_payload' => ['error' => $e->getMessage()],
+            ]);
+            Log::error('Failed to fund betting account (VTU Africa)', [
+                'user_id' => $user->sId,
+                'transaction_ref' => $transactionRef,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->error($e->getMessage(), 500);
+        }
     }
 }

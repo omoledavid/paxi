@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TransactionStatus;
+use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\NetworkResource;
 use App\Models\Airtime;
 use App\Models\ApiConfig;
 use App\Models\Network;
+use App\Models\VtuAfricaTransaction;
 use App\Services\NelloBytes\AirtimeService;
 use App\Services\Vtpass\AirtimeService as VtpassAirtimeService;
+use App\Services\VtuAfrica\AirtimeService as VtuAfricaAirtimeService;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -19,7 +23,8 @@ class AirtimeController extends Controller
 
     public function __construct(
         protected AirtimeService $airtimeService,
-        protected VtpassAirtimeService $vtpassAirtimeService
+        protected VtpassAirtimeService $vtpassAirtimeService,
+        protected VtuAfricaAirtimeService $vtuAfricaAirtimeService
     ) {
     }
 
@@ -52,7 +57,7 @@ class AirtimeController extends Controller
         ]);
 
         // Check transaction PIN first (for non-Nellobytes flow)
-        if (!$this->isNellobytesEnabled()) {
+        if (!$this->isNellobytesEnabled() && !$this->isVtuAfricaEnabled()) {
             if (!hash_equals((string) $user->sPin, (string) $validated['pin'])) {
                 throw ValidationException::withMessages([
                     'pin' => 'The provided PIN is incorrect.',
@@ -61,6 +66,11 @@ class AirtimeController extends Controller
         }
 
         $transactionRef = generateTransactionRef();
+
+        // Priority: VTU Africa -> Nellobytes -> VTpass -> Legacy
+        if ($this->isVtuAfricaEnabled()) {
+            return $this->purchaseVtuAfricaAirtime($validated, $user, $transactionRef);
+        }
 
         // Route to Nellobytes if enabled
         if ($this->isNellobytesEnabled()) {
@@ -238,5 +248,97 @@ class AirtimeController extends Controller
         }
 
         return $enabled;
+    }
+
+    private function isVtuAfricaEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'vtuAfricaStatus') === 'On' &&
+                getConfigValue($config, 'vtuAfricaAirtimeStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+
+    /**
+     * Purchase airtime via VTU Africa.
+     */
+    private function purchaseVtuAfricaAirtime(array $validated, $user, string $transactionRef)
+    {
+        // Map network ID to VTU Africa network code
+        $network = VtuAfricaAirtimeService::mapNetworkCode($validated['network']);
+
+        if (!$network) {
+            return $this->error('Unsupported network for VTU Africa');
+        }
+
+        // Calculate discount if applicable
+        $airtimeDiscount = Airtime::where('aNetwork', $validated['network'])->where('aType', 'VTU')->first();
+        $discountRate = match ((int) $user->sType) {
+            1 => $airtimeDiscount?->aUserDiscount ?? 100,
+            2 => $airtimeDiscount?->aAgentDiscount ?? 100,
+            3 => $airtimeDiscount?->aVendorDiscount ?? 100,
+            default => 100
+        };
+        $payableAmount = ($validated['amount'] / 100) * $discountRate;
+
+        // Remove sensitive data from request payload
+        $requestPayload = $validated;
+        unset($requestPayload['pin']);
+
+        // Create transaction record
+        $transaction = VtuAfricaTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => VtuAfricaServiceType::AIRTIME,
+            'transaction_ref' => $transactionRef,
+            'amount' => $validated['amount'],
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $requestPayload,
+        ]);
+
+        try {
+            $result = $this->vtuAfricaAirtimeService->purchaseAirtime(
+                network: $network,
+                phoneNumber: $validated['phone_number'],
+                amount: $validated['amount'],
+                transactionRef: $transactionRef
+            );
+
+            // Update transaction to success
+            $transaction->update([
+                'status' => TransactionStatus::SUCCESS,
+                'provider_ref' => $result['reference'] ?? null,
+                'response_payload' => $result['raw_response'] ?? $result,
+            ]);
+
+            // Debit wallet after successful API call
+            debitWallet(
+                user: $user,
+                amount: $payableAmount,
+                serviceName: 'Airtime Purchase (VTU Africa)',
+                serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']} at NGN{$payableAmount}",
+                transactionRef: $transactionRef,
+                wrapInTransaction: false,
+            );
+
+            return $this->ok('Airtime purchased successfully', [
+                'reference' => $transactionRef,
+                'vtuafrica_ref' => $result['reference'] ?? null,
+                'data' => $result,
+            ]);
+
+        } catch (\Exception $e) {
+            $transaction->update([
+                'status' => TransactionStatus::FAILED,
+                'error_message' => $e->getMessage(),
+                'response_payload' => ['error' => $e->getMessage()],
+            ]);
+
+            return $this->error($e->getMessage());
+        }
     }
 }

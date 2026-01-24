@@ -4,16 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
+use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\ElectricityCompanyResource;
 use App\Http\Resources\ElectricityResource;
 use App\Models\ApiConfig;
 use App\Models\EProvider;
 use App\Models\NelloBytesTransaction;
-use App\Models\PaystackTransaction; // [NEW]
+use App\Models\PaystackTransaction;
+use App\Models\VtuAfricaTransaction;
 use App\Services\NelloBytes\ElectricityService;
-use App\Services\NelloBytes\NelloBytesTransactionService; // [NEW]
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Paystack\ElectricityService as PaystackElectricityService;
-use App\Services\Paystack\PaystackTransactionService; // [NEW]
+use App\Services\Paystack\PaystackTransactionService;
+use App\Services\VtuAfrica\ElectricityService as VtuAfricaElectricityService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
@@ -25,28 +28,44 @@ class ElectricityController extends Controller
 
     protected ElectricityService $electricityService;
 
-    protected PaystackElectricityService $paystackElectricityService; // [NEW]
+    protected PaystackElectricityService $paystackElectricityService;
 
     protected NelloBytesTransactionService $nelloBytesTransactionService;
 
-    protected PaystackTransactionService $paystackTransactionService; // [NEW]
+    protected PaystackTransactionService $paystackTransactionService;
 
     public function __construct(
         ElectricityService $electricityService,
         NelloBytesTransactionService $nelloBytesTransactionService,
-        PaystackElectricityService $paystackElectricityService, // [NEW]
-        PaystackTransactionService $paystackTransactionService, // [NEW]
-        protected \App\Services\Vtpass\ElectricityService $vtpassElectricityService // [NEW]
+        PaystackElectricityService $paystackElectricityService,
+        PaystackTransactionService $paystackTransactionService,
+        protected \App\Services\Vtpass\ElectricityService $vtpassElectricityService,
+        protected VtuAfricaElectricityService $vtuAfricaElectricityService
     ) {
         $this->electricityService = $electricityService;
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
-        $this->paystackElectricityService = $paystackElectricityService; // [NEW]
-        $this->paystackTransactionService = $paystackTransactionService; // [NEW]
+        $this->paystackElectricityService = $paystackElectricityService;
+        $this->paystackTransactionService = $paystackTransactionService;
     }
 
     public function index()
     {
-        if ($this->isNellobytesEnabled()) {
+        // Priority: VTU Africa -> NelloBytes -> Paystack -> fallback
+        if ($this->isVtuAfricaEnabled()) {
+            // VTU Africa uses static provider list from config
+            // Map to format expected by ElectricityCompanyResource
+            $providers = collect(config('vtuafrica.electricity_providers', []))->map(function ($provider) {
+                return [
+                    'ID' => $provider['code'],
+                    'NAME' => $provider['name'],
+                ];
+            });
+
+            return $this->ok('success', [
+                'provider' => ElectricityCompanyResource::collection($providers),
+                'meter_type' => ['Prepaid', 'Postpaid'],
+            ]);
+        } elseif ($this->isNellobytesEnabled()) {
             $response = $this->electricityService->getElectricityProviders();
 
             if (!$response || !isset($response['ELECTRIC_COMPANY'])) {
@@ -108,13 +127,13 @@ class ElectricityController extends Controller
                 $provider = EProvider::query()->findOrFail($validatedData['provider_id']);
                 $providerMap = $this->getVtpassProviderMap();
                 $serviceID = $providerMap[$provider->abbreviation] ?? $provider->abbreviation;
-                
+
                 $response = $this->vtpassElectricityService->verifyMeter(
                     $serviceID,
                     $validatedData['meter_no'],
                     $validatedData['meter_type']
                 );
-                
+
                 if (!isset($response['content']['Customer_Name'])) {
                     return $this->error($response['response_description'] ?? 'Invalid Meter Number', 400);
                 }
@@ -141,8 +160,10 @@ class ElectricityController extends Controller
         // ref code
         $transRef = generateTransactionRef();
 
-        // nelly
-        if ($this->isNellobytesEnabled()) {
+        // Priority: VTU Africa -> NelloBytes -> Paystack -> VTpass -> Legacy
+        if ($this->isVtuAfricaEnabled()) {
+            return $this->purchaseElectricityVtuAfrica($validatedData, $transRef, $user);
+        } elseif ($this->isNellobytesEnabled()) {
             $meterType = ($validatedData['meter_type'] == 'prepaid') ? 01 : 02;
 
             return $this->purchaseElectricityNellobytes($validatedData, $meterType, $transRef, $user);
@@ -190,7 +211,29 @@ class ElectricityController extends Controller
             'meter_no' => 'required|string',
         ]);
 
-        if ($this->isNellobytesEnabled()) {
+        // Priority: VTU Africa -> NelloBytes -> Paystack -> VTpass -> Legacy
+        if ($this->isVtuAfricaEnabled()) {
+            try {
+                $provider = EProvider::where('eId', $validatedData['provider_id'])->first();
+                $service = VtuAfricaElectricityService::mapServiceCode(
+                    $provider->abbreviation ?? $validatedData['provider_id']
+                );
+
+                $response = $this->vtuAfricaElectricityService->verifyMeter(
+                    service: $service,
+                    meterNo: $validatedData['meter_no'],
+                    meterType: $validatedData['meter_type']
+                );
+
+                return $this->ok('Verified meter no', [
+                    'customer_name' => $response['customer_name'] ?? 'Unknown',
+                    'meter_number' => $validatedData['meter_no'],
+                    'address' => $response['address'] ?? null,
+                ]);
+            } catch (\Exception $e) {
+                return $this->error('Meter validation failed: ' . $e->getMessage(), 400);
+            }
+        } elseif ($this->isNellobytesEnabled()) {
             $validateMeter = $this->electricityService->VeryMeterNumber($validatedData['provider_id'], $validatedData['meter_no'], $validatedData['meter_type']);
 
             if ($validateMeter === null || !is_array($validateMeter)) {
@@ -560,5 +603,120 @@ class ElectricityController extends Controller
         }
 
         return $enabled;
+    }
+
+    private function isVtuAfricaEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'vtuAfricaStatus') === 'On' &&
+                getConfigValue($config, 'vtuAfricaElectricityStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+
+    private function purchaseElectricityVtuAfrica($validatedData, $transRef, $user)
+    {
+        DB::beginTransaction();
+
+        // Remove sensitive data from request payload
+        $requestPayload = $validatedData;
+        unset($requestPayload['pin']);
+
+        $amount = $validatedData['amount'];
+
+        $transaction = VtuAfricaTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => VtuAfricaServiceType::ELECTRICITY,
+            'transaction_ref' => $transRef,
+            'amount' => $amount,
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $requestPayload,
+        ]);
+
+        try {
+            debitWallet(
+                user: $user,
+                amount: $amount,
+                serviceName: 'Electricity Purchase (VTU Africa)',
+                serviceDesc: 'Purchase of electricity token',
+                transactionRef: $transRef,
+                wrapInTransaction: false
+            );
+
+            $provider = EProvider::where('eId', $validatedData['provider_id'])->first();
+            $service = VtuAfricaElectricityService::mapServiceCode(
+                $provider->abbreviation ?? $validatedData['provider_id']
+            );
+
+            $response = $this->vtuAfricaElectricityService->purchaseElectricity(
+                service: $service,
+                meterNo: $validatedData['meter_no'],
+                meterType: $validatedData['meter_type'],
+                amount: $amount,
+                transactionRef: $transRef
+            );
+
+            // Update transaction to success
+            $transaction->update([
+                'status' => TransactionStatus::SUCCESS,
+                'provider_ref' => $response['reference'] ?? null,
+                'response_payload' => $response['raw_response'] ?? $response,
+            ]);
+
+            // Send token email if available
+            $token = $response['token'] ?? null;
+            if ($token) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
+                        $token,
+                        $amount,
+                        $validatedData['meter_no'],
+                        $transRef
+                    ));
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send electricity token email', ['error' => $e->getMessage()]);
+                }
+            }
+
+            DB::commit();
+
+            return $this->ok('Electricity purchase successful', [
+                'reference' => $transRef,
+                'vtuafrica_ref' => $response['reference'] ?? null,
+                'token' => $token,
+                'data' => $response,
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            $transaction->update([
+                'status' => TransactionStatus::FAILED,
+                'error_message' => $e->getMessage(),
+                'response_payload' => ['error' => $e->getMessage()],
+            ]);
+
+            // Refund the user
+            creditWallet(
+                user: $user,
+                amount: $amount,
+                serviceName: 'Wallet Refund',
+                serviceDesc: 'Refund for failed VTU Africa electricity transaction: ' . $transRef,
+                transactionRef: null,
+                wrapInTransaction: false
+            );
+
+            \Log::error('Electricity purchase failed (VTU Africa)', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return $this->error('Electricity purchase failed', 500, $e->getMessage());
+        }
     }
 }

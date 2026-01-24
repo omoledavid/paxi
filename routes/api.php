@@ -68,11 +68,9 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         });
     });
     // Airtime
-    Route::controller(AirtimeController::class)->group(function () {
-        Route::prefix('airtime')->group(function () {
-            Route::get('/', 'index');
-            Route::post('/', 'purchaseAirtime');
-        });
+    Route::prefix('airtime')->group(function () {
+        Route::get('/', [AirtimeController::class, 'index']);
+        Route::post('/', [AirtimeController::class, 'purchaseAirtime']);
     });
     // Tv cable
     Route::controller(CableTvController::class)->group(function () {

@@ -11,6 +11,8 @@ class DataPlan extends Model
 
     protected $table = 'dataplans'; // Table name
 
+    public $timestamps = false; // Table doesn't have timestamp columns
+
     protected $primaryKey = 'pId';  // Primary key column
 
     public function network()

@@ -42,6 +42,9 @@ class AppServiceProvider extends ServiceProvider
                     'vtpass.api_key' => getConfigValue(\App\Models\ApiConfig::all(), 'vtApiKey'),
                     'vtpass.secret_key' => getConfigValue(\App\Models\ApiConfig::all(), 'vtSecretKey'),
                     'vtpass.public_key' => getConfigValue(\App\Models\ApiConfig::all(), 'vtPublicKey'),
+                    // VTU Africa Config
+                    'vtuafrica.api_key' => getConfigValue(\App\Models\ApiConfig::all(), 'vtuAfricaApiKey'),
+                    'vtuafrica.base_url' => getConfigValue(\App\Models\ApiConfig::all(), 'vtuAfricaBaseUrl') ?: config('vtuafrica.base_url'),
                 ]);
             }
 

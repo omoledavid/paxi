@@ -4,16 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
+use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\CableTvResource;
 use App\Models\ApiConfig;
 use App\Models\CableTv;
 use App\Models\NelloBytesTransaction;
-use App\Models\PaystackTransaction; // [NEW]
+use App\Models\PaystackTransaction;
+use App\Models\VtuAfricaTransaction;
 use App\Services\NelloBytes\CableTvService;
-use App\Services\NelloBytes\NelloBytesTransactionService; // [NEW]
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Paystack\CableTvService as PaystackCableTvService;
-use App\Services\Paystack\PaystackTransactionService; // [NEW]
-use App\Services\Vtpass\TvSubscriptionService as VtpassTvService; // [NEW]
+use App\Services\Paystack\PaystackTransactionService;
+use App\Services\Vtpass\TvSubscriptionService as VtpassTvService;
+use App\Services\VtuAfrica\CableTvService as VtuAfricaCableTvService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
@@ -25,29 +28,83 @@ class CableTvController extends Controller
 
     protected CableTvService $cableTvService;
 
-    protected PaystackCableTvService $paystackCableTvService; // [NEW]
+    protected PaystackCableTvService $paystackCableTvService;
 
     protected NelloBytesTransactionService $nelloBytesTransactionService;
 
-    protected PaystackTransactionService $paystackTransactionService; // [NEW]
+    protected PaystackTransactionService $paystackTransactionService;
 
     public function __construct(
         CableTvService $cableTvService,
         NelloBytesTransactionService $nelloBytesTransactionService,
-        PaystackCableTvService $paystackCableTvService, // [NEW]
-        PaystackTransactionService $paystackTransactionService, // [NEW]
-        protected VtpassTvService $vtpassTvService // [NEW]
+        PaystackCableTvService $paystackCableTvService,
+        PaystackTransactionService $paystackTransactionService,
+        protected VtpassTvService $vtpassTvService,
+        protected VtuAfricaCableTvService $vtuAfricaCableTvService
     ) {
         $this->cableTvService = $cableTvService;
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
-        $this->paystackCableTvService = $paystackCableTvService; // [NEW]
-        $this->paystackTransactionService = $paystackTransactionService; // [NEW]
+        $this->paystackCableTvService = $paystackCableTvService;
+        $this->paystackTransactionService = $paystackTransactionService;
     }
 
     public function index()
     {
         $cableTv = CableTv::with('plans')->get();
-        if ($this->isNellobytesEnabled()) {
+
+        // Priority: VTU Africa -> NelloBytes -> Paystack -> VTpass
+        if ($this->isVtuAfricaEnabled()) {
+            // VTU Africa uses static plans from config
+            $cableTvPlans = config('vtuafrica.cabletv_plans', []);
+
+            $cableTv = collect([
+                (object) [
+                    'cId' => '1',
+                    'provider' => 'GOTV',
+                    'providerStatus' => 'Active',
+                    'logo' => null,
+                    'plans' => collect($cableTvPlans['gotv'] ?? [])->map(function ($plan) {
+                        return (object) [
+                            'cpId' => $plan['code'],
+                            'name' => $plan['name'],
+                            'userprice' => $plan['price'],
+                            'day' => '30',
+                            'planid' => $plan['code'],
+                        ];
+                    }),
+                ],
+                (object) [
+                    'cId' => '2',
+                    'provider' => 'DSTV',
+                    'providerStatus' => 'Active',
+                    'logo' => null,
+                    'plans' => collect($cableTvPlans['dstv'] ?? [])->map(function ($plan) {
+                        return (object) [
+                            'cpId' => $plan['code'],
+                            'name' => $plan['name'],
+                            'userprice' => $plan['price'],
+                            'day' => '30',
+                            'planid' => $plan['code'],
+                        ];
+                    }),
+                ],
+                (object) [
+                    'cId' => '3',
+                    'provider' => 'STARTIMES',
+                    'providerStatus' => 'Active',
+                    'logo' => null,
+                    'plans' => collect($cableTvPlans['startimes'] ?? [])->map(function ($plan) {
+                        return (object) [
+                            'cpId' => $plan['code'],
+                            'name' => $plan['name'],
+                            'userprice' => $plan['price'],
+                            'day' => '30',
+                            'planid' => $plan['code'],
+                        ];
+                    }),
+                ],
+            ]);
+        } elseif ($this->isNellobytesEnabled()) {
             $response = $this->cableTvService->getPlans();
 
             if (isset($response['TV_ID'])) {
@@ -156,7 +213,9 @@ class CableTvController extends Controller
             'iuc_no' => 'required',
             'pin' => 'required',
         ]);
-        if ($this->isNellobytesEnabled()) {
+        if ($this->isVtuAfricaEnabled()) {
+            return $this->purchaseVtuAfricaCableTv($validatedData, $user);
+        } elseif ($this->isNellobytesEnabled()) {
             return $this->purchaseNellobytesCableTv($validatedData, $user);
         } elseif ($this->isPaystackEnabled()) {
             return $this->purchasePaystackCableTv($validatedData, $user);
@@ -232,8 +291,48 @@ class CableTvController extends Controller
         $request->validate([
             'provider_id' => 'required',
             'iuc_no' => 'required',
+            'plan_id' => 'nullable', // VTU Africa requires variation for verify
         ]);
-        if ($this->isNellobytesEnabled()) {
+
+        // Priority: VTU Africa -> NelloBytes -> Paystack -> VTpass -> Legacy
+        if ($this->isVtuAfricaEnabled()) {
+            try {
+                $service = VtuAfricaCableTvService::mapServiceCode($request->provider_id);
+
+                // VTU Africa requires variation (plan_id) for verification
+                // Use provider-appropriate default if not provided
+                $variation = $request->plan_id;
+                if (!$variation) {
+                    $defaultVariations = [
+                        'gotv' => 'gotv_max',
+                        'dstv' => 'dstv_padi',
+                        'startimes' => 'startimes_nova',
+                        'showmax' => 'full_3',
+                    ];
+                    $variation = $defaultVariations[$service] ?? 'gotv_max';
+                }
+
+                $response = $this->vtuAfricaCableTvService->verifySmartcard(
+                    service: $service,
+                    smartNo: $request->iuc_no,
+                    variation: $variation
+                );
+
+                $customerName = $response['customer_name'] ?? 'Unknown';
+
+                return $this->ok('success', [
+                    'status' => 'success',
+                    'Status' => 'successful',
+                    'msg' => $customerName,
+                    'name' => $customerName,
+                    'Customer_Name' => $customerName,
+                    'current_bouquet' => $response['current_bouquet'] ?? null,
+                    'due_date' => $response['due_date'] ?? null,
+                ]);
+            } catch (\Exception $e) {
+                return $this->error('Invalid IUC number or Service Unavailable');
+            }
+        } elseif ($this->isNellobytesEnabled()) {
             $response = $this->cableTvService->verifyIUC($request->provider_id, $request->iuc_no);
             if ($response['status'] == 'INVALID_CABLETV') {
                 return $this->error('Invalid IUC number');
@@ -523,5 +622,101 @@ class CableTvController extends Controller
             'STARTIMES' => 'startimes',
             'SHOWMAX' => 'showmax',
         ];
+    }
+
+    private function isVtuAfricaEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'vtuAfricaStatus') === 'On' &&
+                getConfigValue($config, 'vtuAfricaCableStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+
+    private function purchaseVtuAfricaCableTv($validatedData, $user)
+    {
+        $transRef = generateTransactionRef();
+        $amount = $validatedData['price'];
+
+        DB::beginTransaction();
+
+        // Remove sensitive data from request payload
+        $requestPayload = $validatedData;
+        unset($requestPayload['pin']);
+
+        $transaction = VtuAfricaTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => VtuAfricaServiceType::CABLETV,
+            'transaction_ref' => $transRef,
+            'amount' => $amount,
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $requestPayload,
+        ]);
+
+        try {
+            debitWallet(
+                user: $user,
+                amount: $amount,
+                serviceName: 'CableTV Purchase (VTU Africa)',
+                serviceDesc: 'Purchase of cabletv plan',
+                transactionRef: $transRef,
+                wrapInTransaction: false
+            );
+
+            $service = VtuAfricaCableTvService::mapServiceCode($validatedData['provider_id']);
+
+            $response = $this->vtuAfricaCableTvService->purchaseSubscription(
+                service: $service,
+                smartNo: $validatedData['iuc_no'],
+                variation: $validatedData['plan_id'],
+                transactionRef: $transRef
+            );
+
+            // Update transaction to success
+            $transaction->update([
+                'status' => TransactionStatus::SUCCESS,
+                'provider_ref' => $response['reference'] ?? null,
+                'response_payload' => $response['raw_response'] ?? $response,
+            ]);
+
+            DB::commit();
+
+            return $this->ok('CableTV purchase successful', [
+                'reference' => $transRef,
+                'vtuafrica_ref' => $response['reference'] ?? null,
+                'data' => $response,
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            $transaction->update([
+                'status' => TransactionStatus::FAILED,
+                'error_message' => $e->getMessage(),
+                'response_payload' => ['error' => $e->getMessage()],
+            ]);
+
+            // Refund the user
+            creditWallet(
+                user: $user,
+                amount: $amount,
+                serviceName: 'Wallet Refund',
+                serviceDesc: 'Refund for failed VTU Africa cable TV transaction: ' . $transRef,
+                transactionRef: null,
+                wrapInTransaction: false
+            );
+
+            \Log::error('CableTV purchase failed (VTU Africa)', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return $this->error('CableTV purchase failed', 500, $e->getMessage());
+        }
     }
 }
