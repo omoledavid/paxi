@@ -99,6 +99,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
 
     // KYC
     Route::get('kyc/status/{job_id}', [KycController::class, 'status']);
+    Route::post('kyc/initiate', [KycController::class,'initiate']);
 
     // VTpass Integration
     Route::prefix('vtpass')->group(function () {
