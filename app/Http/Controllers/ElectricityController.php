@@ -12,10 +12,12 @@ use App\Models\EProvider;
 use App\Models\NelloBytesTransaction;
 use App\Models\PaystackTransaction;
 use App\Models\VtuAfricaTransaction;
+use App\Models\VtpassTransaction;
 use App\Services\NelloBytes\ElectricityService;
 use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Paystack\ElectricityService as PaystackElectricityService;
 use App\Services\Paystack\PaystackTransactionService;
+use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\ElectricityService as VtuAfricaElectricityService;
 use App\Traits\ApiResponses;
 use DB;
@@ -27,18 +29,17 @@ class ElectricityController extends Controller
     use ApiResponses;
 
     protected ElectricityService $electricityService;
-
     protected PaystackElectricityService $paystackElectricityService;
-
     protected NelloBytesTransactionService $nelloBytesTransactionService;
-
     protected PaystackTransactionService $paystackTransactionService;
+    protected VtpassTransactionService $vtpassTransactionService;
 
     public function __construct(
         ElectricityService $electricityService,
         NelloBytesTransactionService $nelloBytesTransactionService,
         PaystackElectricityService $paystackElectricityService,
         PaystackTransactionService $paystackTransactionService,
+        VtpassTransactionService $vtpassTransactionService,
         protected \App\Services\Vtpass\ElectricityService $vtpassElectricityService,
         protected VtuAfricaElectricityService $vtuAfricaElectricityService
     ) {
@@ -46,6 +47,7 @@ class ElectricityController extends Controller
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
         $this->paystackElectricityService = $paystackElectricityService;
         $this->paystackTransactionService = $paystackTransactionService;
+        $this->vtpassTransactionService = $vtpassTransactionService;
     }
 
     public function index()
@@ -121,37 +123,6 @@ class ElectricityController extends Controller
             'amount' => 'required|numeric|min:1',
             'pin' => 'required',
         ]);
-        // validate meter no
-        if ($this->isVtpassEnabled()) {
-            try {
-                $provider = EProvider::query()->findOrFail($validatedData['provider_id']);
-                $providerMap = $this->getVtpassProviderMap();
-                $serviceID = $providerMap[$provider->abbreviation] ?? $provider->abbreviation;
-
-                $response = $this->vtpassElectricityService->verifyMeter(
-                    $serviceID,
-                    $validatedData['meter_no'],
-                    $validatedData['meter_type']
-                );
-
-                if (!isset($response['content']['Customer_Name'])) {
-                    return $this->error($response['response_description'] ?? 'Invalid Meter Number', 400);
-                }
-            } catch (\Exception $e) {
-                \Log::info($e);
-                return $this->error('Meter Validation Failed', 400);
-            }
-        } else {
-            $validateMeter = validateMeterNumber($validatedData['provider_id'], $validatedData['meter_no'], $validatedData['meter_type'], $user->sApiKey);
-
-            if ($validateMeter === null || !is_array($validateMeter)) {
-                return $this->error('Failed to validate meter number. Please try again.', 400);
-            }
-
-            if ($validateMeter['status'] == 'fail' || $validateMeter['status'] == 'failed') {
-                return $this->error($validateMeter['msg'], 400);
-            }
-        }
         // check pin
         if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
@@ -482,7 +453,7 @@ class ElectricityController extends Controller
         DB::beginTransaction();
         try {
             $amount = $validatedData['amount'];
-            $transaction = \App\Models\VtpassTransaction::create([
+            $transaction = VtpassTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => 'electricity-bill',
                 'transaction_ref' => $transRef,
@@ -513,48 +484,36 @@ class ElectricityController extends Controller
                 phone: $user->sPhone
             );
 
-            $responseCode = $response['code'] ?? '999';
-            $status = ($responseCode === '000') ? TransactionStatus::SUCCESS : TransactionStatus::FAILED;
+            // Use handleProviderResponse for automatic reversal on failure
+            $this->vtpassTransactionService->handleProviderResponse(
+                $response,
+                $transaction,
+                $user,
+                $amount
+            );
 
-            $transaction->update([
-                'status' => $status,
-                'vtpass_ref' => $response['content']['transactions']['transactionId'] ?? null,
-                'response_payload' => $response
-            ]);
-
-            // Email Logic
-            if ($status === TransactionStatus::SUCCESS) {
-                // Check for token in response usually in 'purchased_code' or similar for VTpass
-                // VTpass docs say `purchased_code` or `mainToken` or `token` in `transactions`?
-                // Usually `purchased_code` contains the token (e.g., "Token: 1234...").
-                // Let's grab it.
-                $token = $response['purchased_code'] ?? $response['mainToken'] ?? $response['token'] ?? null;
-                // If token contains "Token :", strip it?
-
-                if ($token) {
-                    try {
-                        \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
-                            $token,
-                            $amount,
-                            $validatedData['meter_no'],
-                            $transRef
-                        ));
-                    } catch (\Exception $e) {
-                        \Log::error('Failed to send electricity token email', ['error' => $e->getMessage()]);
-                    }
+            // Email Logic for successful transaction
+            $token = $response['purchased_code'] ?? $response['mainToken'] ?? $response['token'] ?? null;
+            if ($token) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
+                        $token,
+                        $amount,
+                        $validatedData['meter_no'],
+                        $transRef
+                    ));
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send electricity token email', ['error' => $e->getMessage()]);
                 }
             }
 
             DB::commit();
 
-            if ($status === TransactionStatus::SUCCESS) {
-                return $this->ok('Electricity purchase successful', $response);
-            } else {
-                return $this->error($response['response_description'] ?? 'Purchase failed');
-            }
+            return $this->ok('Electricity purchase successful', $response);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            return $this->error('Purchase failed', 500, $e->getMessage());
+            return $this->error($e->getMessage());
         }
     }
 

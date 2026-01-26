@@ -2,17 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
 use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\NetworkResource;
 use App\Models\Airtime;
 use App\Models\ApiConfig;
+use App\Models\NelloBytesTransaction;
 use App\Models\Network;
 use App\Models\VtuAfricaTransaction;
+use App\Models\VtpassTransaction;
 use App\Services\NelloBytes\AirtimeService;
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Vtpass\AirtimeService as VtpassAirtimeService;
+use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\AirtimeService as VtuAfricaAirtimeService;
 use App\Traits\ApiResponses;
+use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -21,11 +27,18 @@ class AirtimeController extends Controller
 {
     use ApiResponses;
 
+    protected NelloBytesTransactionService $nelloBytesTransactionService;
+    protected VtpassTransactionService $vtpassTransactionService;
+
     public function __construct(
         protected AirtimeService $airtimeService,
         protected VtpassAirtimeService $vtpassAirtimeService,
-        protected VtuAfricaAirtimeService $vtuAfricaAirtimeService
+        protected VtuAfricaAirtimeService $vtuAfricaAirtimeService,
+        NelloBytesTransactionService $nelloBytesTransactionService,
+        VtpassTransactionService $vtpassTransactionService
     ) {
+        $this->nelloBytesTransactionService = $nelloBytesTransactionService;
+        $this->vtpassTransactionService = $vtpassTransactionService;
     }
 
     /**
@@ -85,6 +98,15 @@ class AirtimeController extends Controller
                 default => 100
             };
 
+            $transaction = NelloBytesTransaction::create([
+                'user_id' => $user->sId,
+                'service_type' => NelloBytesServiceType::AIRTIME,
+                'transaction_ref' => $transactionRef,
+                'amount' => $validated['amount'],
+                'status' => TransactionStatus::PENDING,
+                'request_payload' => $validated,
+            ]);
+
             // Calculate payable amount: (Amount / 100) * DiscountRate
             $payableAmount = ($validated['amount'] / 100) * $discountRate;
             $result = $this->airtimeService->purchaseAirtime(
@@ -107,6 +129,12 @@ class AirtimeController extends Controller
                 transactionRef: $transactionRef,
                 wrapInTransaction: false,
             );
+            $this->nelloBytesTransactionService->handleProviderResponse(
+                $result,
+                $transaction,
+                $user,
+                $payableAmount
+            );
 
             return $this->ok('Airtime purchase request is being processed', [
                 'reference' => $transactionRef,
@@ -114,8 +142,7 @@ class AirtimeController extends Controller
         }
 
         if ($this->isVtpassEnabled()) {
-            // Calculate discount if applicable or just process
-            // Need to map network ID to VTpass serviceID (mtn, glo, airtel, etisalat)
+            // Map network ID to VTpass serviceID
             $providerMap = [
                 '1' => 'mtn',
                 '2' => 'glo',
@@ -123,8 +150,6 @@ class AirtimeController extends Controller
                 '3' => 'etisalat'
             ];
 
-            // If network input is ID, map it. If it's already a string, use it (but validation expects exists:networkid context implies ID)
-            // Assuming validated['network'] comes as ID from frontend based on existing code logic (0 + network)
             $networkCode = $validated['network'];
             $serviceID = $providerMap[$networkCode] ?? null;
 
@@ -132,53 +157,54 @@ class AirtimeController extends Controller
                 return $this->error('Unsupported network for VTpass');
             }
 
+            DB::beginTransaction();
+
             // Create Transaction Log
-            $transaction = \App\Models\VtpassTransaction::create([
+            $transaction = VtpassTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => 'airtime',
                 'transaction_ref' => $transactionRef,
                 'amount' => $validated['amount'],
-                'status' => \App\Enums\TransactionStatus::PENDING,
+                'status' => TransactionStatus::PENDING,
                 'request_payload' => $validated,
             ]);
 
-            $result = $this->vtpassAirtimeService->purchaseAirtime(
-                requestId: $transactionRef,
-                serviceID: $serviceID,
-                phone: $validated['phone_number'],
-                amount: $validated['amount']
-            );
-
-            // Update Transaction Log
-            $responseCode = $result['code'] ?? '999';
-            $status = ($responseCode === '000') ? \App\Enums\TransactionStatus::SUCCESS : \App\Enums\TransactionStatus::FAILED;
-
-            $transaction->update([
-                'status' => $status,
-                'vtpass_ref' => $result['content']['transactions']['transactionId'] ?? null,
-                'response_payload' => $result,
-                'error_code' => $responseCode
-            ]);
-
-            // Process result...
-            $responseCode = $result['code'] ?? '999';
-            if ($responseCode === '000') {
-                // Debit here or rely on service/hook? 
-                // Existing code debits explicitly for Nellobytes
+            try {
+                // Debit wallet first
                 debitWallet(
                     user: $user,
-                    amount: $validated['amount'], // Apply discount logic if needed
+                    amount: $validated['amount'],
                     serviceName: 'Airtime Purchase (VTpass)',
                     serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']}",
                     transactionRef: $transactionRef,
                     wrapInTransaction: false,
                 );
+
+                $result = $this->vtpassAirtimeService->purchaseAirtime(
+                    requestId: $transactionRef,
+                    serviceID: $serviceID,
+                    phone: $validated['phone_number'],
+                    amount: $validated['amount']
+                );
+
+                // Use handleProviderResponse for automatic reversal on failure
+                $this->vtpassTransactionService->handleProviderResponse(
+                    $result,
+                    $transaction,
+                    $user,
+                    $validated['amount']
+                );
+
+                DB::commit();
+
                 return $this->ok('Airtime purchased successfully', [
                     'reference' => $transactionRef,
                     'vtpass_response' => $result
                 ]);
-            } else {
-                return $this->error($result['response_description'] ?? 'Airtime purchase failed');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return $this->error($e->getMessage());
             }
         }
 

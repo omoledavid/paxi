@@ -11,10 +11,12 @@ use App\Models\DataPlan;
 use App\Models\NelloBytesTransaction;
 use App\Models\Network;
 use App\Models\VtuAfricaTransaction;
+use App\Models\VtpassTransaction;
 use App\Services\NelloBytes\DataService;
-use App\Services\Vtpass\DataService as VtpassDataService;
-use App\Services\VtuAfrica\DataService as VtuAfricaDataService;
 use App\Services\NelloBytes\NelloBytesTransactionService;
+use App\Services\Vtpass\DataService as VtpassDataService;
+use App\Services\Vtpass\VtpassTransactionService;
+use App\Services\VtuAfrica\DataService as VtuAfricaDataService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\JsonResponse;
@@ -26,17 +28,19 @@ class DataController extends Controller
     use ApiResponses;
 
     protected DataService $dataService;
-
     protected NelloBytesTransactionService $nelloBytesTransactionService;
+    protected VtpassTransactionService $vtpassTransactionService;
 
     public function __construct(
         DataService $dataService,
         NelloBytesTransactionService $nelloBytesTransactionService,
+        VtpassTransactionService $vtpassTransactionService,
         protected VtpassDataService $vtpassDataService,
         protected VtuAfricaDataService $vtuAfricaDataService
     ) {
         $this->dataService = $dataService;
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
+        $this->vtpassTransactionService = $vtpassTransactionService;
     }
 
     public function data(): JsonResponse
@@ -150,31 +154,15 @@ class DataController extends Controller
         }
 
         if ($this->isVtpassEnabled()) {
-            // Validate and purchase via VTpass
-            // Map data plan ID to VTpass variation code
-            // Assuming validatedData['data_plan_id'] *might* be the variation code or we need to look it up
-            // For now, assume we need to look up our local DataPlan model to get the code or amount
             $dataCode = DataPlan::find($validatedData['data_plan_id']);
             if (!$dataCode) {
                 return $this->error('Data plan not found');
             }
 
-            // We need 'plan_code' (variation_code) which might differ. 
-            // IF using local VtpassDataPlan logic, we should use that. 
-            // BUT user wants to use *EXISTING* controller which uses `DataPlan` model. 
-            // We might need to map `DataPlan` entries to VTpass codes. 
-            // For this task, I'll assume we can pass the plan ID as variation code OR we need a mapping field.
-            // Let's assume the 'plan_code' we need is the 'dataplan_id' or a new field.
-            // Given Constraints: "Replicate structure... map VTpass fields".
-            // If we don't have a mapping table, we might fail. 
-            // I'll try to use `dataplan_id` from existing DataPlan model as the variation code if possible, or assume it matches.
-            // Actually, `vtpass_data_plans` table I created earlier is better. But existing controller uses `DataPlan`.
-            // I will use the amount from DataPlan and pass existing ID as variation code for now, or fetch from VtpassDataPlan if matches?
-            // Simplest: use `planid` from DataPlan as variation_code.
-
             $txRef = generateTransactionRef();
             DB::beginTransaction();
-            $transaction = \App\Models\VtpassTransaction::create([
+
+            $transaction = VtpassTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => 'data',
                 'transaction_ref' => $txRef,
@@ -211,31 +199,25 @@ class DataController extends Controller
                     requestId: $txRef,
                     serviceID: $serviceID,
                     phone: $validatedData['phone_number'],
-                    variationCode: $dataCode->planid ?? 'unknown', // Hope this matches VTpass variation code
+                    variationCode: $dataCode->planid ?? 'unknown',
                     amount: $amount
                 );
 
-                $responseCode = $response['code'] ?? '999';
-                $vtpassRef = $response['content']['transactions']['transactionId'] ?? null;
-                $status = ($responseCode === '000') ? TransactionStatus::SUCCESS : TransactionStatus::FAILED;
-
-                $transaction->update([
-                    'status' => $status,
-                    'vtpass_ref' => $vtpassRef,
-                    'response_payload' => $response
-                ]);
+                // Use handleProviderResponse for automatic reversal on failure
+                $this->vtpassTransactionService->handleProviderResponse(
+                    $response,
+                    $transaction,
+                    $user,
+                    $amount
+                );
 
                 DB::commit();
 
-                if ($status === TransactionStatus::SUCCESS) {
-                    return $this->ok('Data purchase successful', $response);
-                } else {
-                    return $this->error($response['response_description'] ?? 'Purchase failed');
-                }
+                return $this->ok('Data purchase successful', $response);
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                return $this->error('Data purchase failed', 500, $e->getMessage());
+                return $this->error($e->getMessage());
             }
         }
 

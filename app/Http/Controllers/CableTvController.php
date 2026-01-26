@@ -11,11 +11,13 @@ use App\Models\CableTv;
 use App\Models\NelloBytesTransaction;
 use App\Models\PaystackTransaction;
 use App\Models\VtuAfricaTransaction;
+use App\Models\VtpassTransaction;
 use App\Services\NelloBytes\CableTvService;
 use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Paystack\CableTvService as PaystackCableTvService;
 use App\Services\Paystack\PaystackTransactionService;
 use App\Services\Vtpass\TvSubscriptionService as VtpassTvService;
+use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\CableTvService as VtuAfricaCableTvService;
 use App\Traits\ApiResponses;
 use DB;
@@ -27,18 +29,17 @@ class CableTvController extends Controller
     use ApiResponses;
 
     protected CableTvService $cableTvService;
-
     protected PaystackCableTvService $paystackCableTvService;
-
     protected NelloBytesTransactionService $nelloBytesTransactionService;
-
     protected PaystackTransactionService $paystackTransactionService;
+    protected VtpassTransactionService $vtpassTransactionService;
 
     public function __construct(
         CableTvService $cableTvService,
         NelloBytesTransactionService $nelloBytesTransactionService,
         PaystackCableTvService $paystackCableTvService,
         PaystackTransactionService $paystackTransactionService,
+        VtpassTransactionService $vtpassTransactionService,
         protected VtpassTvService $vtpassTvService,
         protected VtuAfricaCableTvService $vtuAfricaCableTvService
     ) {
@@ -46,6 +47,7 @@ class CableTvController extends Controller
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
         $this->paystackCableTvService = $paystackCableTvService;
         $this->paystackTransactionService = $paystackTransactionService;
+        $this->vtpassTransactionService = $vtpassTransactionService;
     }
 
     public function index()
@@ -528,7 +530,7 @@ class CableTvController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = \App\Models\VtpassTransaction::create([
+            $transaction = VtpassTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => 'tv-subscription',
                 'transaction_ref' => $transRef,
@@ -558,25 +560,21 @@ class CableTvController extends Controller
                 phone: $validatedData['customer_no'] ?? $user->sPhone
             );
 
-            $responseCode = $response['code'] ?? '999';
-            $status = ($responseCode === '000') ? TransactionStatus::SUCCESS : TransactionStatus::FAILED;
-
-            $transaction->update([
-                'status' => $status,
-                'vtpass_ref' => $response['content']['transactions']['transactionId'] ?? null,
-                'response_payload' => $response
-            ]);
+            // Use handleProviderResponse for automatic reversal on failure
+            $this->vtpassTransactionService->handleProviderResponse(
+                $response,
+                $transaction,
+                $user,
+                $amount
+            );
 
             DB::commit();
 
-            if ($status === TransactionStatus::SUCCESS) {
-                return $this->ok('CableTV purchase successful', $response);
-            } else {
-                return $this->error($response['response_description'] ?? 'Purchase failed');
-            }
+            return $this->ok('CableTV purchase successful', $response);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            return $this->error('Purchase failed', 500, $e->getMessage());
+            return $this->error($e->getMessage());
         }
     }
 

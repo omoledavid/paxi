@@ -11,6 +11,7 @@ use App\Models\ApiConfig;
 use App\Models\Epin;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\EpinService;
+use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,9 +25,12 @@ class EpinController extends Controller
 
     protected EpinService $epinService;
 
-    public function __construct(EpinService $epinService)
+    protected NelloBytesTransactionService $nelloBytesTransactionService;
+
+    public function __construct(EpinService $epinService, NelloBytesTransactionService $nelloBytesTransactionService)
     {
         $this->epinService = $epinService;
+        $this->nelloBytesTransactionService = $nelloBytesTransactionService;
     }
 
     /**
@@ -168,6 +172,13 @@ class EpinController extends Controller
                 'nellobytes_ref' => $nellobytesRef,
                 'response_payload' => $result,
             ]);
+            //handle reversal
+            $this->nelloBytesTransactionService->handleProviderResponse(
+                    $result,
+                    $transaction,
+                    $user,
+                    $amount
+                );
 
             // Save EPINs to database
             $savedEpins = [];
