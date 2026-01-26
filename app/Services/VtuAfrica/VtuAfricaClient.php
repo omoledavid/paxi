@@ -124,6 +124,15 @@ class VtuAfricaClient
                     'attempt' => $attempt,
                 ]);
 
+                // Don't retry for VTU Africa API business logic errors
+                // These are definitive responses, not transient network issues
+                // VTU Africa error codes (e.g., 204, 400, etc.) should not be retried
+                // as they indicate the transaction was processed but failed for a known reason
+                $apiErrorCode = $e->getErrorCode();
+                if (!empty($apiErrorCode) && $apiErrorCode !== 'CONNECTION_ERROR') {
+                    throw $e;
+                }
+
                 // Don't retry for client errors (4xx)
                 if ($e->getCode() >= 400 && $e->getCode() < 500) {
                     throw $e;
