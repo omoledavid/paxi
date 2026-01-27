@@ -175,7 +175,7 @@ class DataController extends Controller
                 debitWallet(
                     user: $user,
                     amount: $amount,
-                    serviceName: 'Data Purchase (VTpass)',
+                    serviceName: 'Data Purchase',
                     serviceDesc: "Data purchase for {$validatedData['phone_number']}",
                     transactionRef: $txRef,
                     wrapInTransaction: false
@@ -327,7 +327,7 @@ class DataController extends Controller
             debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'Data Purchase (VTU Africa)',
+                serviceName: 'Data Purchase',
                 serviceDesc: "Data purchase for {$validated['phone_number']}",
                 transactionRef: $transRef,
                 wrapInTransaction: false

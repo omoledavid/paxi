@@ -318,8 +318,8 @@ class ElectricityController extends Controller
             $debit = debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'NelloBytes Electricity Purchase',
-                serviceDesc: 'Purchase of electricity plan via NelloBytes',
+                serviceName: 'Electricity Purchase',
+                serviceDesc: 'Purchase of electricity plan',
                 transactionRef: $transRef,
                 wrapInTransaction: false
             );
@@ -397,8 +397,8 @@ class ElectricityController extends Controller
             debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'Paystack Electricity Purchase',
-                serviceDesc: 'Purchase of electricity plan via Paystack',
+                serviceName: 'Electricity Purchase',
+                serviceDesc: 'Purchase of electricity plan',
                 transactionRef: $transRef,
                 wrapInTransaction: false
             );
@@ -465,7 +465,7 @@ class ElectricityController extends Controller
             debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'Electricity Purchase (VTpass)',
+                serviceName: 'Electricity Purchase',
                 serviceDesc: 'Purchase of electricity token',
                 transactionRef: $transRef,
                 wrapInTransaction: false
@@ -601,7 +601,7 @@ class ElectricityController extends Controller
             debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'Electricity Purchase (VTU Africa)',
+                serviceName: 'Electricity Purchase',
                 serviceDesc: 'Purchase of electricity token',
                 transactionRef: $transRef,
                 wrapInTransaction: false

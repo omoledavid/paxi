@@ -486,7 +486,7 @@ class CableTvController extends Controller
             debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'CableTV Purchase (Paystack)',
+                serviceName: 'CableTV Purchase',
                 serviceDesc: 'Purchase of cabletv plan',
                 transactionRef: $transRef,
                 wrapInTransaction: false
@@ -542,7 +542,7 @@ class CableTvController extends Controller
             debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'CableTV Purchase (VTpass)',
+                serviceName: 'CableTV Purchase',
                 serviceDesc: 'Purchase of cabletv plan',
                 transactionRef: $transRef,
                 wrapInTransaction: false
@@ -660,7 +660,7 @@ class CableTvController extends Controller
             debitWallet(
                 user: $user,
                 amount: $amount,
-                serviceName: 'CableTV Purchase (VTU Africa)',
+                serviceName: 'CableTV Purchase',
                 serviceDesc: 'Purchase of cabletv plan',
                 transactionRef: $transRef,
                 wrapInTransaction: false

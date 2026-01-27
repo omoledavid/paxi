@@ -174,7 +174,7 @@ class AirtimeController extends Controller
                 debitWallet(
                     user: $user,
                     amount: $validated['amount'],
-                    serviceName: 'Airtime Purchase (VTpass)',
+                    serviceName: 'Airtime Purchase',
                     serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']}",
                     transactionRef: $transactionRef,
                     wrapInTransaction: false,
@@ -345,7 +345,7 @@ class AirtimeController extends Controller
             debitWallet(
                 user: $user,
                 amount: $payableAmount,
-                serviceName: 'Airtime Purchase (VTU Africa)',
+                serviceName: 'Airtime Purchase',
                 serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']} at NGN{$payableAmount}",
                 transactionRef: $transactionRef,
                 wrapInTransaction: false,
