@@ -4,7 +4,7 @@ namespace App\Services\Vtpass;
 
 class DataService extends VtpassClient
 {
-    public function purchaseData(string $requestId, string $serviceID, string $phone, string $variationCode, float $amount = 0)
+    public function purchaseData(string $requestId, string $serviceID, string $phone, string $variationCode, float $amount = 0, array $extra_payload = [])
     {
         $payload = [
             'request_id' => $requestId,
@@ -17,6 +17,11 @@ class DataService extends VtpassClient
         // Some services might require amount explicitly if it's not fixed by variation (rare for data)
         if ($amount > 0) {
             $payload['amount'] = $amount;
+        }
+
+        // Merge extra payload (e.g., username, password for Smile)
+        if (!empty($extra_payload)) {
+            $payload = array_merge($payload, $extra_payload);
         }
 
         return $this->purchaseProduct($payload);

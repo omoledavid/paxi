@@ -31,6 +31,8 @@ class UserResource extends JsonResource
                 'mobile_verified' => $this->sMobileVerified ?? false,
                 'verification_status' => ($this->sRegStatus == 0) && ($this->sMobileVerified ?? false),
                 'referral_link' => env('FRONTEND_URL').'/mobile/register/?referral='.$this->sPhone,
+                'nin_status' => $this->nin_verified,
+                'kyc_status' => $this->kyc_status,
                 'banks' => [
                     [
                         'name' => 'Wema Bank',

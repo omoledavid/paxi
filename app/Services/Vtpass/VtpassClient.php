@@ -29,9 +29,9 @@ class VtpassClient
             'Content-Type' => 'application/json',
         ];
 
-        
-            $headers['api-key'] = $this->apiKey;
-            $headers['secret-key'] = $this->secretKey;
+
+        $headers['api-key'] = $this->apiKey;
+        $headers['secret-key'] = $this->secretKey;
 
         $this->client = new Client([
             'base_uri' => $this->baseUrl,
@@ -43,23 +43,31 @@ class VtpassClient
     /**
      * Make a request to VTpass API
      */
-    protected function makeRequest(string $method, string $endpoint, array $data = []): array
+    protected function makeRequest(string $method, string $endpoint, array $data = [], array $requestOptions = []): array
     {
         try {
-            $options = [];
+            $options = $requestOptions;
             if (!empty($data)) {
                 $options['json'] = $data;
             }
 
             // Set headers based on method
             $headers = [];
-            if (strtoupper($method) === 'GET') {
-                $headers['api-key'] = $this->apiKey;
-                $headers['public-key'] = $this->publicKey;
+
+            // Check if Basic Auth credentials are provided in options or config
+            if (isset($options['auth']) && $options['auth'] === 'basic') {
+                $username = $options['username'] ?? $this->apiKey; // Fallback to apiKey/email if not provided
+                $password = $options['password'] ?? $this->secretKey; // This might need to be passed explicitly
+                $headers['Authorization'] = 'Basic ' . base64_encode("$username:$password");
             } else {
-                // POST and others
-                $headers['api-key'] = $this->apiKey;
-                $headers['secret-key'] = $this->secretKey;
+                if (strtoupper($method) === 'GET') {
+                    $headers['api-key'] = $this->apiKey;
+                    $headers['public-key'] = $this->publicKey;
+                } else {
+                    // POST and others
+                    $headers['api-key'] = $this->apiKey;
+                    $headers['secret-key'] = $this->secretKey;
+                }
             }
             $options['headers'] = $headers;
 
@@ -86,7 +94,18 @@ class VtpassClient
     public function purchaseProduct(array $payload)
     {
         $endpoint = config('vtpass.endpoints.pay', 'pay');
-        return $this->makeRequest('POST', $endpoint, $payload);
+
+        // Extract auth options if present
+        $options = [];
+        if (isset($payload['username']) && isset($payload['password'])) {
+            $options['auth'] = 'basic';
+            $options['username'] = $payload['username'];
+            $options['password'] = $payload['password'];
+            // Remove from payload as they are for headers/auth
+            unset($payload['username'], $payload['password']);
+        }
+
+        return $this->makeRequest('POST', $endpoint, $payload, $options);
     }
 
     /**

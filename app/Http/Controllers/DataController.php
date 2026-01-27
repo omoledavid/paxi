@@ -186,7 +186,9 @@ class DataController extends Controller
                     '1' => 'mtn-data',
                     '2' => 'glo-data',
                     '4' => 'airtel-data',
-                    '3' => 'etisalat-data'
+                    '3' => 'etisalat-data',
+                    '5' => 'smile-direct',
+                    '6' => 'spectranet',
                 ];
                 $networkCode = $validatedData['network_id'];
                 $serviceID = $providerMap[$networkCode] ?? null;
@@ -195,12 +197,59 @@ class DataController extends Controller
                     throw new \Exception("Unsupported network ID: $networkCode");
                 }
 
+                // Extra payload for Smile and Spectranet
+                $extraPayload = [];
+
+                // Smile Logic
+                if ($networkCode === '5') {
+                    // Check if Smile Data is enabled
+                    $smileDataStatus = getConfigValue(ApiConfig::all(), 'vtpassSmileDataStatus') ?? 'Off';
+                    if ($smileDataStatus !== 'On') {
+                        throw new \Exception("Smile Data service is currently disabled.");
+                    }
+
+                    $vtUsername = getConfigValue(ApiConfig::all(), 'vtUsername');
+                    $vtPassword = getConfigValue(ApiConfig::all(), 'vtPassword');
+
+                    if (empty($vtUsername) || empty($vtPassword)) {
+                        throw new \Exception("Smile configuration missing username or password.");
+                    }
+
+                    $extraPayload = [
+                        'username' => $vtUsername,
+                        'password' => $vtPassword,
+                    ];
+                }
+
+                // Spectranet Logic
+                if ($networkCode === '6') {
+                    // Check if Spectranet Data is enabled
+                    $spectranetStatus = getConfigValue(ApiConfig::all(), 'vtpassSpectranetStatus') ?? 'Off';
+                    if ($spectranetStatus !== 'On') {
+                        throw new \Exception("Spectranet service is currently disabled.");
+                    }
+
+                    $vtUsername = getConfigValue(ApiConfig::all(), 'vtUsername');
+                    $vtPassword = getConfigValue(ApiConfig::all(), 'vtPassword');
+
+                    if (empty($vtUsername) || empty($vtPassword)) {
+                        throw new \Exception("Spectranet configuration missing username or password.");
+                    }
+
+                    $extraPayload = [
+                        'username' => $vtUsername,
+                        'password' => $vtPassword,
+                        'quantity' => 1, // Required parameter for Spectranet
+                    ];
+                }
+
                 $response = $this->vtpassDataService->purchaseData(
                     requestId: $txRef,
                     serviceID: $serviceID,
                     phone: $validatedData['phone_number'],
                     variationCode: $dataCode->planid ?? 'unknown',
-                    amount: $amount
+                    amount: $amount,
+                    extra_payload: $extraPayload
                 );
 
                 // Use handleProviderResponse for automatic reversal on failure

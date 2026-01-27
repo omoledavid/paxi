@@ -1,0 +1,1 @@
+INSERT INTO networkid (nId, network, networkStatus, vtuStatus, sharesellStatus, airtimepinStatus, smeStatus, giftingStatus, corporateStatus, datapinStatus, networkid, smeId, giftingId, corporateId, vtuId, sharesellId) VALUES (6, 'SPECTRANET', 'On', 'On', 'On', 'On', 'On', 'On', 'On', 'On', '6', '6', '6', '6', '6', '6');
