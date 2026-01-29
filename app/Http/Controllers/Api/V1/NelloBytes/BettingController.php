@@ -388,9 +388,12 @@ class BettingController extends Controller
 
         DB::beginTransaction();
         try {
+            $charge = 50;
+            $totalAmount = (float) $validated['amount'] + $charge;
+
             $debit = debitWallet(
                 $user,
-                (float) $validated['amount'],
+                $totalAmount,
                 'Betting Funding (VTU Africa)',
                 sprintf(
                     'Betting funding for %s (%s)',
@@ -398,7 +401,7 @@ class BettingController extends Controller
                     $validated['company_code']
                 ),
                 0,
-                0,
+                $charge,
                 $transactionRef,
                 false
             );
