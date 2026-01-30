@@ -288,7 +288,7 @@ class BettingController extends Controller
             $debit = debitWallet(
                 $user,
                 (float) $validated['amount'],
-                'Betting Funding (Paystack)',
+                'Betting Funding',
                 sprintf(
                     'Betting funding for %s (%s)',
                     $validated['customer_id'],
@@ -394,7 +394,7 @@ class BettingController extends Controller
             $debit = debitWallet(
                 $user,
                 $totalAmount,
-                'Betting Funding (VTU Africa)',
+                'Betting Funding',
                 sprintf(
                     'Betting funding for %s (%s)',
                     $validated['customer_id'],
