@@ -7,6 +7,7 @@ use App\Enums\TransactionStatus;
 use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\ElectricityCompanyResource;
 use App\Http\Resources\ElectricityResource;
+use App\Mail\SendElectricityToken;
 use App\Models\ApiConfig;
 use App\Models\EProvider;
 use App\Models\NelloBytesTransaction;
@@ -23,6 +24,7 @@ use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 
 class ElectricityController extends Controller
 {
@@ -511,6 +513,10 @@ class ElectricityController extends Controller
 
             return $this->ok('Electricity purchase successful', $response);
 
+        } catch (\App\Exceptions\VtpassTransactionFailedException $e) {
+            // Commit the transaction to save the "FAILED" status and the wallet refund
+            DB::commit();
+            return $this->error($e->getMessage());
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->error($e->getMessage());
@@ -631,7 +637,7 @@ class ElectricityController extends Controller
             $token = $response['token'] ?? null;
             if ($token) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
+                    Mail::to($user)->send(new SendElectricityToken(
                         $token,
                         $amount,
                         $validatedData['meter_no'],
@@ -665,7 +671,7 @@ class ElectricityController extends Controller
                 user: $user,
                 amount: $amount,
                 serviceName: 'Wallet Refund',
-                serviceDesc: 'Refund for failed VTU Africa electricity transaction: ' . $transRef,
+                serviceDesc: 'Refund for failed electricity transaction: ' . $transRef,
                 transactionRef: null,
                 wrapInTransaction: false
             );

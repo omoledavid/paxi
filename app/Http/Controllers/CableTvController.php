@@ -704,7 +704,7 @@ class CableTvController extends Controller
                 user: $user,
                 amount: $amount,
                 serviceName: 'Wallet Refund',
-                serviceDesc: 'Refund for failed VTU Africa cable TV transaction: ' . $transRef,
+                serviceDesc: 'Refund for failed cable TV transaction: ' . $transRef,
                 transactionRef: null,
                 wrapInTransaction: false
             );
