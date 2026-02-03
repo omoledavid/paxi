@@ -35,7 +35,8 @@ class AirtimeController extends Controller
         protected VtpassAirtimeService $vtpassAirtimeService,
         protected VtuAfricaAirtimeService $vtuAfricaAirtimeService,
         NelloBytesTransactionService $nelloBytesTransactionService,
-        VtpassTransactionService $vtpassTransactionService
+        VtpassTransactionService $vtpassTransactionService,
+        protected \App\Services\VtuAfrica\VtuAfricaTransactionService $vtuAfricaTransactionService
     ) {
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
         $this->vtpassTransactionService = $vtpassTransactionService;
@@ -316,6 +317,8 @@ class AirtimeController extends Controller
         $requestPayload = $validated;
         unset($requestPayload['pin']);
 
+        DB::beginTransaction();
+
         // Create transaction record
         $transaction = VtuAfricaTransaction::create([
             'user_id' => $user->sId,
@@ -327,20 +330,6 @@ class AirtimeController extends Controller
         ]);
 
         try {
-            $result = $this->vtuAfricaAirtimeService->purchaseAirtime(
-                network: $network,
-                phoneNumber: $validated['phone_number'],
-                amount: $validated['amount'],
-                transactionRef: $transactionRef
-            );
-
-            // Update transaction to success
-            $transaction->update([
-                'status' => TransactionStatus::SUCCESS,
-                'provider_ref' => $result['reference'] ?? null,
-                'response_payload' => $result['raw_response'] ?? $result,
-            ]);
-
             // Debit wallet after successful API call
             debitWallet(
                 user: $user,
@@ -351,19 +340,36 @@ class AirtimeController extends Controller
                 wrapInTransaction: false,
             );
 
+            $result = $this->vtuAfricaAirtimeService->purchaseAirtime(
+                network: $network,
+                phoneNumber: $validated['phone_number'],
+                amount: $validated['amount'],
+                transactionRef: $transactionRef
+            );
+
+            // Use handleProviderResponse for automatic reversal on failure
+            $this->vtuAfricaTransactionService->handleProviderResponse(
+                $result,
+                $transaction,
+                $user,
+                $payableAmount
+            );
+
+            DB::commit();
+
+
             return $this->ok('Airtime purchased successfully', [
                 'reference' => $transactionRef,
                 'vtuafrica_ref' => $result['reference'] ?? null,
                 'data' => $result,
             ]);
 
+        } catch (\App\Exceptions\VtuAfricaTransactionFailedException $e) {
+            // Commit the transaction to save the "FAILED" status and the wallet refund
+            DB::commit();
+            return $this->error($e->getMessage());
         } catch (\Exception $e) {
-            $transaction->update([
-                'status' => TransactionStatus::FAILED,
-                'error_message' => $e->getMessage(),
-                'response_payload' => ['error' => $e->getMessage()],
-            ]);
-
+            DB::rollBack();
             return $this->error($e->getMessage());
         }
     }

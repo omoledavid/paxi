@@ -277,24 +277,101 @@ class ElectricityController extends Controller
     public function purchaseHistory(Request $request)
     {
         $user = auth()->user();
+        $limit = 20;
 
-        // Retrieve transactions
-        $transactions = NelloBytesTransaction::query()
+        // 1. NelloBytes Query
+        $nelloBytes = DB::table('nellobytes_transactions')
+            ->select([
+                'transaction_ref',
+                'amount',
+                'status',
+                'created_at',
+                'request_payload',
+                'response_payload',
+                DB::raw("'nellobytes' as provider"),
+            ])
             ->where('user_id', $user->sId)
-            ->where('service_type', NelloBytesServiceType::ELECTRICITY)
-            ->latest()
-            ->paginate(20);
+            ->where('service_type', NelloBytesServiceType::ELECTRICITY->value);
+
+        // 2. VTpass Query
+        $vtpass = DB::table('vtpass_transactions')
+            ->select([
+                'transaction_ref',
+                'amount',
+                'status',
+                'created_at',
+                'request_payload',
+                'response_payload',
+                DB::raw("'vtpass' as provider"),
+            ])
+            ->where('user_id', $user->sId)
+            ->where('service_type', 'electricity-bill');
+
+        // 3. Paystack Query
+        $paystack = DB::table('paystack_transactions')
+            ->select([
+                'transaction_ref',
+                'amount',
+                'status',
+                'created_at',
+                'request_payload',
+                'response_payload',
+                DB::raw("'paystack' as provider"),
+            ])
+            ->where('user_id', $user->sId)
+            ->where('service_type', \App\Enums\PaystackServiceType::ELECTRICITY->value);
+
+        // 4. VtuAfrica Query
+        $vtuAfrica = DB::table('vtuafrica_transactions')
+            ->select([
+                'transaction_ref',
+                'amount',
+                'status',
+                'created_at',
+                'request_payload',
+                'response_payload',
+                DB::raw("'vtuafrica' as provider"),
+            ])
+            ->where('user_id', $user->sId)
+            ->where('service_type', VtuAfricaServiceType::ELECTRICITY->value);
+
+        // Union All
+        $query = $nelloBytes
+            ->unionAll($vtpass)
+            ->unionAll($paystack)
+            ->unionAll($vtuAfrica)
+            ->orderBy('created_at', 'desc');
+
+        // Paginate manually or using a helper if available, but for union standard paginate() might be tricky on older Laravel versions
+        // In recent Laravel versions, query builder union pagination works nicely.
+        $transactions = $query->paginate($limit);
 
         $transactions->getCollection()->transform(function ($transaction) {
-            $responsePayload = $transaction->response_payload ?? [];
-            $requestPayload = $transaction->request_payload ?? [];
+            $responsePayload = json_decode($transaction->response_payload, true) ?? [];
+            $requestPayload = json_decode($transaction->request_payload, true) ?? [];
+
+            // Extract Token based on Provider/Structure
+            $token = null;
+
+            // Common patterns
+            $token = $responsePayload['purchased_code'] // Vtpass / VtuAfrica sometimes
+                ?? $responsePayload['mainToken'] // Vtpass
+                ?? $responsePayload['metertoken'] // NelloBytes
+                ?? $responsePayload['token'] // VTU Africa / Others
+                ?? $responsePayload['data']['token'] // Paystack sometimes
+                ?? null;
+
+            // Normalize Status
+            // DB returns string for status usually, check if it matches enum values
+            $status = $transaction->status; // "pending", "success", "failed"
 
             return [
                 'orderid' => $transaction->transaction_ref,
-                'statuscode' => $transaction->status === TransactionStatus::SUCCESS ? '100' : '0',
-                'status' => strtoupper($transaction->status->value),
-                'meterno' => $requestPayload['meter_no'] ?? null,
-                'metertoken' => $responsePayload['metertoken'] ?? null,
+                'provider' => $transaction->provider,
+                'statuscode' => ($status === TransactionStatus::SUCCESS->value || $status === 'success') ? '100' : '0',
+                'status' => strtoupper($status),
+                'meterno' => $requestPayload['meter_no'] ?? $requestPayload['meter_number'] ?? null,
+                'metertoken' => $token,
                 'amount' => $transaction->amount,
                 'date' => $transaction->created_at,
             ];

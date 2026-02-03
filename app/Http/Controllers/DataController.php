@@ -36,7 +36,8 @@ class DataController extends Controller
         NelloBytesTransactionService $nelloBytesTransactionService,
         VtpassTransactionService $vtpassTransactionService,
         protected VtpassDataService $vtpassDataService,
-        protected VtuAfricaDataService $vtuAfricaDataService
+        protected VtuAfricaDataService $vtuAfricaDataService,
+        protected \App\Services\VtuAfrica\VtuAfricaTransactionService $vtuAfricaTransactionService
     ) {
         $this->dataService = $dataService;
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
@@ -389,12 +390,13 @@ class DataController extends Controller
                 transactionRef: $transRef
             );
 
-            // Update transaction to success
-            $transaction->update([
-                'status' => TransactionStatus::SUCCESS,
-                'provider_ref' => $result['reference'] ?? null,
-                'response_payload' => $result['raw_response'] ?? $result,
-            ]);
+            // Use handleProviderResponse for automatic reversal on failure
+            $this->vtuAfricaTransactionService->handleProviderResponse(
+                $result,
+                $transaction,
+                $user,
+                $amount
+            );
 
             DB::commit();
 
@@ -404,24 +406,12 @@ class DataController extends Controller
                 'data' => $result,
             ]);
 
+        } catch (\App\Exceptions\VtuAfricaTransactionFailedException $e) {
+            // Commit the transaction to save the "FAILED" status and the wallet refund
+            DB::commit();
+            return $this->error($e->getMessage());
         } catch (\Exception $e) {
             DB::rollBack();
-
-            $transaction->update([
-                'status' => TransactionStatus::FAILED,
-                'error_message' => $e->getMessage(),
-                'response_payload' => ['error' => $e->getMessage()],
-            ]);
-
-            // Refund the user
-            creditWallet(
-                user: $user,
-                amount: $amount,
-                serviceName: 'Wallet Refund',
-                serviceDesc: 'Refund for failed VTU Africa data transaction: ' . $transRef,
-                transactionRef: null,
-                wrapInTransaction: false
-            );
 
             return $this->error($e->getMessage());
         }
