@@ -353,22 +353,13 @@ class ElectricityController extends Controller
             // Extract Token based on Provider/Structure
             $token = null;
 
-            \Log::info('electricity history log: '. json_encode($responsePayload));
-
             // Common patterns
-            $token = $responsePayload['Token'] // VTU Africa / Others
+            $token = $responsePayload['description']['Token'] // Nested Token (VtuAfrica common)
                 ?? $responsePayload['purchased_code'] // Vtpass / VtuAfrica sometimes
                 ?? $responsePayload['mainToken'] // Vtpass
                 ?? $responsePayload['metertoken'] // NelloBytes
                 ?? $responsePayload['data']['token'] // Paystack sometimes
                 ?? null;
-
-            \Log::info('electricity history log: '. json_encode($token));
-            \Log::info('vtu africa token: '. json_encode($responsePayload['Token']));
-            \Log::info('vtu africa purchased_code: '. json_encode($responsePayload['purchased_code']));
-            \Log::info('vtu africa mainToken: '. json_encode($responsePayload['mainToken']));
-            \Log::info('vtu africa metertoken: '. json_encode($responsePayload['metertoken']));
-            \Log::info('vtu africa data token: '. json_encode($responsePayload['data']['token']));
 
             // Normalize Status
             // DB returns string for status usually, check if it matches enum values
