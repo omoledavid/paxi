@@ -49,6 +49,9 @@ return [
             'verify' => 'merchant-verify/',
             'purchase' => 'electric/',
         ],
+        'exam' => [
+            'purchase' => 'exam-pin/'
+        ]
     ],
 
     /*

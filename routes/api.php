@@ -81,11 +81,10 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         });
     });
     // Exam Card
-    Route::controller(ExamCardController::class)->group(function () {
-        Route::prefix('exam-card')->group(function () {
-            Route::get('/', 'index');
-            Route::post('/', 'purchaseExamCardPin');
-        });
+    Route::prefix('exam-card')->group(function () {
+        Route::get('/', [ExamCardController::class, 'index']);
+        Route::get('/history', [ExamCardController::class, 'purchaseHistory']);
+        Route::post('/', [ExamCardController::class, 'purchaseExamCardPin']);
     });
     // Settings
     Route::controller(GeneralController::class)->group(function () {
@@ -99,7 +98,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
 
     // KYC
     Route::get('kyc/status/{job_id}', [KycController::class, 'status']);
-    Route::post('kyc/initiate', [KycController::class,'initiate']);
+    Route::post('kyc/initiate', [KycController::class, 'initiate']);
 
     // VTpass Integration
     Route::prefix('vtpass')->group(function () {

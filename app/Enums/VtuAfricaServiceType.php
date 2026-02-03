@@ -9,4 +9,5 @@ enum VtuAfricaServiceType: string
     case DATA = 'data';
     case CABLETV = 'cabletv';
     case ELECTRICITY = 'electricity';
+    case EXAM = 'exam';
 }
