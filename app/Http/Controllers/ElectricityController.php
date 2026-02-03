@@ -356,7 +356,7 @@ class ElectricityController extends Controller
             \Log::info('electricity history log: '. json_encode($responsePayload));
 
             // Common patterns
-            $token = $responsePayload['token'] // VTU Africa / Others
+            $token = $responsePayload['Token'] // VTU Africa / Others
                 ?? $responsePayload['purchased_code'] // Vtpass / VtuAfrica sometimes
                 ?? $responsePayload['mainToken'] // Vtpass
                 ?? $responsePayload['metertoken'] // NelloBytes
