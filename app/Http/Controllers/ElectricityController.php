@@ -353,6 +353,8 @@ class ElectricityController extends Controller
             // Extract Token based on Provider/Structure
             $token = null;
 
+            \Log::info(''. json_encode($responsePayload));
+
             // Common patterns
             $token = $responsePayload['purchased_code'] // Vtpass / VtuAfrica sometimes
                 ?? $responsePayload['mainToken'] // Vtpass
