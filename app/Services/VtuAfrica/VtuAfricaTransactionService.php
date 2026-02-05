@@ -57,7 +57,7 @@ class VtuAfricaTransactionService
             user: $user,
             amount: $amount,
             serviceName: 'Wallet Refund',
-            serviceDesc: 'Refund for failed VTU Africa transaction ' . $transaction->transaction_ref . ': ' . $message,
+            serviceDesc: 'Refund for failed transaction ' . $transaction->transaction_ref . ': ' . $message,
             transactionRef: null,
             wrapInTransaction: false
         );
