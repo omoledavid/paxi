@@ -23,12 +23,28 @@ class NelloBytesTransactionService
         // Extract status and message
         $status = $response['status'] ?? null;
 
-        // Successful case: typically 'ORDER_RECEIVED' or 'success'
-        // Adjust this check based on actual API success indicators
-        if ($status === 'ORDER_RECEIVED' || $status === 'success') {
+        // Successful case: 
+        // 1. For EPIN transactions: Check for TXN_EPIN array (no status field in response)
+        // 2. For other transactions: Check for 'ORDER_RECEIVED' or 'success' status
+        $isEpinSuccess = isset($response['TXN_EPIN']) && is_array($response['TXN_EPIN']) && count($response['TXN_EPIN']) > 0;
+        $isStatusSuccess = $status === 'ORDER_RECEIVED' || $status === 'success';
+
+        if ($isEpinSuccess || $isStatusSuccess) {
+            // Extract nellobytes reference
+            $nellobytesRef = null;
+            if ($isEpinSuccess) {
+                // For EPIN transactions, extract from TXN_EPIN array
+                $txnPins = $response['TXN_EPIN'];
+                $primaryTxn = is_array($txnPins) && count($txnPins) ? $txnPins[0] : [];
+                $nellobytesRef = $primaryTxn['transactionid'] ?? null;
+            } else {
+                // For other transactions, extract from standard fields
+                $nellobytesRef = $response['reference'] ?? $response['ref'] ?? $response['orderid'] ?? null;
+            }
+
             $transaction->update([
                 'status' => TransactionStatus::SUCCESS,
-                'nellobytes_ref' => $response['reference'] ?? $response['ref'] ?? null,
+                'nellobytes_ref' => $nellobytesRef,
                 'response_payload' => $response,
             ]);
 
@@ -48,7 +64,7 @@ class NelloBytesTransactionService
             user: $user,
             amount: $amount,
             serviceName: 'Wallet Refund',
-            serviceDesc: 'Refund for failed transaction '.$transaction->transaction_ref.': '.($response['message'] ?? 'Unknown error'),
+            serviceDesc: 'Refund for failed transaction ' . $transaction->transaction_ref . ': ' . ($response['message'] ?? 'Unknown error'),
             transactionRef: null, // Generate new ref for the refund transaction
             wrapInTransaction: false // Already inside a transaction in the controller typically
         );

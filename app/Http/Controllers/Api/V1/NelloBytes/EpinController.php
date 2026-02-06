@@ -13,6 +13,7 @@ use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\EpinService;
 use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Traits\ApiResponses;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -91,7 +92,7 @@ class EpinController extends Controller
         $user = auth()->user();
         $validated = $request->validated();
 
-        if (! $this->isNellobytesEnabled()) {
+        if (!$this->isNellobytesEnabled()) {
             return $this->error('NelloBytes is currently disabled', 400);
         }
 
@@ -163,22 +164,13 @@ class EpinController extends Controller
                 $validated['callback_url'] ?? null
             );
 
-            // Update transaction with response
-            $txnPins = $result['TXN_EPIN'] ?? [];
-            $primaryTxn = is_array($txnPins) && count($txnPins) ? $txnPins[0] : [];
-            $nellobytesRef = $primaryTxn['transactionid'] ?? $result['orderid'] ?? $result['reference'] ?? $result['ref'] ?? null;
-            $transaction->update([
-                'status' => TransactionStatus::SUCCESS,
-                'nellobytes_ref' => $nellobytesRef,
-                'response_payload' => $result,
-            ]);
-            //handle reversal
+            // Handle provider response - this will update transaction status, nellobytes_ref, and handle refunds if needed
             $this->nelloBytesTransactionService->handleProviderResponse(
-                    $result,
-                    $transaction,
-                    $user,
-                    $amount
-                );
+                $result,
+                $transaction,
+                $user,
+                $amount
+            );
 
             // Save EPINs to database
             $savedEpins = [];
@@ -191,7 +183,7 @@ class EpinController extends Controller
                         'amount' => $validated['value'],
                         'pin_code' => $pinData['pin'] ?? $pinData['CardPin'] ?? 'UNKNOWN',
                         'serial_number' => $pinData['sno'] ?? $pinData['SerialNo'] ?? null,
-                        'expiry_date' => isset($pinData['expiry']) ? \Carbon\Carbon::parse($pinData['expiry']) : null,
+                        'expiry_date' => isset($pinData['expiry']) ? Carbon::parse($pinData['expiry']) : null,
                         'status' => 'unused',
                         'description' => "Purchased {$validated['mobile_network']} {$validated['value']}",
                     ];
@@ -209,9 +201,12 @@ class EpinController extends Controller
                 Log::error('Failed to send EPIN email', ['error' => $e->getMessage()]);
             }
 
+            // Refresh transaction to get updated nellobytes_ref
+            $transaction->refresh();
+
             return $this->ok('EPIN card printed successfully', [
                 'transaction_ref' => $transactionRef,
-                'nellobytes_ref' => $nellobytesRef,
+                'nellobytes_ref' => $transaction->nellobytes_ref,
                 'amount' => $amount,
                 'balance' => $debit['new_balance'],
                 'data' => $result,
@@ -267,13 +262,13 @@ class EpinController extends Controller
             );
 
             // Optionally update stored transaction if we find it by request_id
-            if (! empty($validated['request_id'])) {
+            if (!empty($validated['request_id'])) {
                 NelloBytesTransaction::where('transaction_ref', $validated['request_id'])
                     ->where('service_type', NelloBytesServiceType::EPIN)
                     ->latest()
                     ->first()?->update([
-                        'response_payload' => $result,
-                    ]);
+                            'response_payload' => $result,
+                        ]);
             }
 
             return $this->ok('EPIN transaction retrieved successfully', $result);
@@ -373,7 +368,7 @@ class EpinController extends Controller
         // Get the network name from the ID
         $networkName = $networkMap[$networkId] ?? null;
 
-        if (! $networkName) {
+        if (!$networkName) {
             // If network not found, return original amount
             Log::warning('Unknown network ID for discount calculation', ['network_id' => $networkId]);
 
@@ -381,7 +376,7 @@ class EpinController extends Controller
         }
 
         // Check if discount data exists for this network
-        if (! isset($discountData['MOBILE_NETWORK'][$networkName])) {
+        if (!isset($discountData['MOBILE_NETWORK'][$networkName])) {
             Log::warning('No discount data found for network', ['network' => $networkName]);
 
             return $amount;
@@ -390,7 +385,7 @@ class EpinController extends Controller
         $networkDiscounts = $discountData['MOBILE_NETWORK'][$networkName];
 
         // Get the first discount entry (assuming one discount per network)
-        if (empty($networkDiscounts) || ! isset($networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'])) {
+        if (empty($networkDiscounts) || !isset($networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'])) {
             Log::warning('Invalid discount structure for network', ['network' => $networkName]);
 
             return $amount;
