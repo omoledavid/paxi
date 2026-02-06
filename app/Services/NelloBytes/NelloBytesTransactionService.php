@@ -25,9 +25,10 @@ class NelloBytesTransactionService
 
         // Successful case: 
         // 1. For EPIN transactions: Check for TXN_EPIN array (no status field in response)
-        // 2. For other transactions: Check for 'ORDER_RECEIVED' or 'success' status
+        // 2. For electricity transactions: Check for status '00' (successful verification/purchase)
+        // 3. For other transactions: Check for 'ORDER_RECEIVED' or 'success' status
         $isEpinSuccess = isset($response['TXN_EPIN']) && is_array($response['TXN_EPIN']) && count($response['TXN_EPIN']) > 0;
-        $isStatusSuccess = $status === 'ORDER_RECEIVED' || $status === 'success';
+        $isStatusSuccess = $status === 'ORDER_RECEIVED' || $status === 'success' || $status === '00';
 
         if ($isEpinSuccess || $isStatusSuccess) {
             // Extract nellobytes reference
@@ -39,7 +40,12 @@ class NelloBytesTransactionService
                 $nellobytesRef = $primaryTxn['transactionid'] ?? null;
             } else {
                 // For other transactions, extract from standard fields
-                $nellobytesRef = $response['reference'] ?? $response['ref'] ?? $response['orderid'] ?? null;
+                // Electricity transactions may not have a reference, so we use orderid or transaction_id
+                $nellobytesRef = $response['reference']
+                    ?? $response['ref']
+                    ?? $response['orderid']
+                    ?? $response['transaction_id']
+                    ?? null;
             }
 
             $transaction->update([
