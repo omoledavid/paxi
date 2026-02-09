@@ -15,7 +15,7 @@ class BettingService extends VtuAfricaClient
      */
     public function getCompanies(): array
     {
-        return config('vtuafrica.betting_companies', []);
+        return config('vtuafrica.betting_companies');
     }
 
     /**

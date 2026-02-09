@@ -6,6 +6,7 @@ return [
     'secret_key' => env('VTPASS_SECRET_KEY'), // public_key in vtpass context usually just username/password or api key. prompts said username/password/api_key
     'username' => env('VTPASS_USERNAME'),
     'password' => env('VTPASS_PASSWORD'),
+    'vtpassSandbox' => env('VTPASS_SANDBOX', false),
 
     // Some endpoints might specific
     'endpoints' => [
