@@ -62,22 +62,37 @@ class BettingController extends Controller
     public function getCompanies(): JsonResponse
     {
         try {
-            // Priority: VTU Africa -> Paystack -> NelloBytes
-            if ($this->isVtuAfricaEnabled()) {
-                $companies = $this->vtuAfricaBettingService->getCompanies();
+            $companies = [
+                ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'naijabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'nairabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'bet9ja-agent', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'betland', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'betlion', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'supabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'bangbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'betking', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => '1xbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'betway', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'merrybet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'mlotto', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'western-lotto', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'hallabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'green-lotto', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'betbiga', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'sportybet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'melbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'livescorebet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'naira-million', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'cloudbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'paripesa', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'mylottohub', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+            ];
 
-                return $this->ok('Betting companies retrieved successfully', $companies);
-            }
-
-            if ($this->isPaystackEnabled()) {
-                $companies = $this->paystackBettingService->getProviders();
-
-                return $this->ok('Betting companies retrieved successfully', $companies);
-            }
-
-            $companies = $this->bettingService->getCompanies();
-
-            return $this->ok('Betting companies retrieved successfully', $companies);
+            return $this->ok('Betting companies retrieved successfully', [
+                'BETTING_COMPANY' => $companies
+            ]);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve betting companies', [
                 'error' => $e->getMessage(),
