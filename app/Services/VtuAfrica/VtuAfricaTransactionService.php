@@ -22,9 +22,12 @@ class VtuAfricaTransactionService
         User $user,
         float $amount
     ): array {
+        // If the service wrapped the response, extract the raw VTU Africa response
+        $vtuResponse = isset($response['raw_response']) ? $response['raw_response'] : $response;
+
         // VTU Africa success code is 101
-        $code = $response['code'] ?? null;
-        $description = $response['description'] ?? [];
+        $code = $vtuResponse['code'] ?? null;
+        $description = $vtuResponse['description'] ?? [];
         $status = is_array($description) ? ($description['Status'] ?? null) : null;
 
         // Successful case: code 101 with Status 'Completed' or 'Processing'

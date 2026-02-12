@@ -102,17 +102,18 @@ class SmileIdentityKycService
      */
     public function handleWebhook(array $payload): void
     {
-        $jobId = $payload['SmileJobID'] ?? null;
+        $smileJobId = $payload['SmileJobID'] ?? null;
+        $internalJobId = $payload['PartnerParams']['job_id'] ?? null;
 
-        if (!$jobId) {
-            Log::error('SmileID Webhook missing JobID', $payload);
+        if (!$internalJobId) {
+            Log::error('SmileID Webhook missing internal JobID (PartnerParams.job_id)', $payload);
 
             return;
         }
 
-        $attempt = KycAttempt::where('job_id', $jobId)->first();
+        $attempt = KycAttempt::where('job_id', $internalJobId)->first();
         if (!$attempt) {
-            Log::warning("SmileID Webhook Job Not Found: $jobId");
+            Log::warning("SmileID Webhook Job Not Found: $internalJobId");
 
             return;
         }
@@ -148,7 +149,7 @@ class SmileIdentityKycService
             if ($attempt->status === 'approved') {
                 $user->kyc_status = 'approved';
                 $user->kyc_approved_at = now();
-                $user->kyc_job_id = $jobId;
+                $user->kyc_job_id = $smileJobId;
                 if ($ninMatch) {
                     $user->nin_verified = '1';
                 }
