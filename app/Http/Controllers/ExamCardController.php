@@ -222,7 +222,7 @@ class ExamCardController extends Controller
 
             // Extract PINs
             // VTU Africa usually returns 'pins' in description for exam products
-            $pins = $description['pins'] ?? null;
+            $pins = $responsePayload['pins'] ?? null;
             $productName = $description['ProductName'] ?? $requestPayload['service'] ?? 'Exam PIN';
 
             $status = $transaction->status;
