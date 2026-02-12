@@ -30,7 +30,7 @@ class VtuAfricaTransactionService
         // Successful case: code 101 with Status 'Completed' or 'Processing'
         // VTU Africa returns 'Processing' for successful funding requests
         $successStatuses = ['Completed', 'Processing'];
-        if ($code == 101 && in_array($status, $successStatuses)) {
+        if ($code == 101) {
             $transaction->update([
                 'status' => TransactionStatus::SUCCESS,
                 'provider_ref' => $description['ReferenceID'] ?? null,

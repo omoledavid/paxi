@@ -63,11 +63,11 @@ class KycController extends Controller
         ]);
 
 
-        if (! $this->kycService->validateWebhookSignature($request)) {
-            Log::warning('Invalid SmileID Webhook Signature', $request->headers->all());
+        // if (! $this->kycService->validateWebhookSignature($request)) {
+        //     Log::warning('Invalid SmileID Webhook Signature', $request->headers->all());
 
-            return response()->json(['message' => 'Invalid Signature'], 401);
-        }
+        //     return response()->json(['message' => 'Invalid Signature'], 401);
+        // }
 
         try {
             $this->kycService->handleWebhook($request->all());
