@@ -57,6 +57,12 @@ class KycController extends Controller
         // Let's do a basic check here if not in service logic detail.
         // Actually, I put a method in Service calling it.
 
+        Log::info('SmileID Webhook Received', [
+            'payload' => $request->all(),
+            'headers' => $request->headers->all(),
+        ]);
+
+
         if (! $this->kycService->validateWebhookSignature($request)) {
             Log::warning('Invalid SmileID Webhook Signature', $request->headers->all());
 

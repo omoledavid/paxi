@@ -120,3 +120,4 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
 
 // Webhooks (Public but Signed)
 Route::post('webhooks/smile-identity', [KycController::class, 'handleWebhook']);
+Route::post('smile-callback', [KycController::class, 'handleWebhook']);
