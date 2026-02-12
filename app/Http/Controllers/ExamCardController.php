@@ -218,6 +218,7 @@ class ExamCardController extends Controller
             $responsePayload = json_decode($transaction->response_payload, true) ?? [];
             $requestPayload = json_decode($transaction->request_payload, true) ?? [];
             $description = $responsePayload['description'] ?? [];
+            \Log::info('response', $responsePayload);
 
             // Extract PINs
             // VTU Africa usually returns 'pins' in description for exam products
