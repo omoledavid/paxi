@@ -24,6 +24,7 @@ class InitiateKycRequest extends FormRequest
         return [
             'template_id' => ['sometimes', 'integer'],
             'product_type' => ['required', 'string', 'in:verification,biometric_kyc,authentication'],
+            'nin' => ['sometimes', 'string', 'regex:/^[0-9]{11}$/'],
             // 'user_id' => ['sometimes', 'exists:subscribers,sId'], // Only needed if admin initiating for user, but prompt says "Initiate (auth:sanctum)" usually means self.
         ];
     }

@@ -39,7 +39,7 @@ class SmileIdentityKycService
      */
     public function initiateKyc(User $user, array $data = []): array
     {
-        $jobId = 'job_'.uniqid().'_'.$user->sId;
+        $jobId = 'job_' . uniqid() . '_' . $user->sId;
         $userId = (string) $user->sId;
 
         // Create a pending attempt record
@@ -48,6 +48,7 @@ class SmileIdentityKycService
             'status' => 'pending',
             'product_type' => $data['product_type'] ?? 'biometric_kyc',
             'template_id' => $data['template_id'] ?? 10,
+            'nin' => $data['nin'] ?? null,
         ]);
 
         try {
@@ -58,6 +59,15 @@ class SmileIdentityKycService
                 $this->apiKey,
                 $this->sidServerId
             );
+
+            $idInfo = null;
+            if (!empty($data['nin'])) {
+                $idInfo = [
+                    'country' => 'NG',
+                    'id_type' => 'NIN_V2',
+                    'id_number' => $data['nin'],
+                ];
+            }
 
             // Generate Web Token
             $response = $core->get_web_token(
@@ -77,6 +87,7 @@ class SmileIdentityKycService
                 'callback_url' => $this->defaultCallback,
                 'product_type' => $attempt->product_type,
                 'signature' => $response['signature'] ?? null,
+                'id_info' => $idInfo,
                 'full_response' => $response,
             ];
 
@@ -93,14 +104,14 @@ class SmileIdentityKycService
     {
         $jobId = $payload['SmileJobID'] ?? null;
 
-        if (! $jobId) {
+        if (!$jobId) {
             Log::error('SmileID Webhook missing JobID', $payload);
 
             return;
         }
 
         $attempt = KycAttempt::where('job_id', $jobId)->first();
-        if (! $attempt) {
+        if (!$attempt) {
             Log::warning("SmileID Webhook Job Not Found: $jobId");
 
             return;
@@ -112,9 +123,16 @@ class SmileIdentityKycService
         // 0810 is standard success
         $isApproved = $resultCode == '0810';
 
+        // NIN Match check (NIN V2 specific)
+        $actions = $payload['Actions'] ?? [];
+        $ninMatch = isset($actions['Verify_ID_Number']) && $actions['Verify_ID_Number'] === 'Completed';
+
         if ($isApproved) {
             $attempt->status = 'approved';
             $attempt->face_match = true;
+            if ($ninMatch) {
+                $attempt->nin_match = true;
+            }
         } else {
             $attempt->status = 'rejected';
             $attempt->rejection_reason = $resultText;
@@ -131,6 +149,9 @@ class SmileIdentityKycService
                 $user->kyc_status = 'approved';
                 $user->kyc_approved_at = now();
                 $user->kyc_job_id = $jobId;
+                if ($ninMatch) {
+                    $user->nin_verified = '1';
+                }
                 $user->save();
 
                 event(new \App\Events\KycApproved($user, $attempt));
@@ -150,7 +171,7 @@ class SmileIdentityKycService
         $signature = $request->header('SmileID-Signature');
         $timestamp = $request->header('SmileID-Timestamp');
 
-        if (! $signature || ! $timestamp) {
+        if (!$signature || !$timestamp) {
             return false;
         }
 
@@ -158,7 +179,7 @@ class SmileIdentityKycService
         $secretKey = config('services.smile_identity.callback_secret') ?? $this->apiKey;
 
         // Manual validation to ensure we use the secret key
-        $message = $timestamp.$this->partnerId.'sid_request';
+        $message = $timestamp . $this->partnerId . 'sid_request';
         $expectedSignature = base64_encode(hash_hmac('sha256', $message, $secretKey, true));
 
         return hash_equals($expectedSignature, $signature);
