@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use App\Models\DataPlan;
 use Illuminate\Database\Seeder;
 
-class SmileDataPlanSeeder extends Seeder
+class SpectranetDataPlanSeeder extends Seeder
 {
     /**
      * Run the database seeds.
@@ -14,8 +14,8 @@ class SmileDataPlanSeeder extends Seeder
      */
     public function run()
     {
-        // URL for Smile Direct variations
-        $url = config('vtpass.base_url') . 'service-variations?serviceID=smile-direct';
+        // URL for Spectranet variations
+        $url = config('vtpass.base_url') . 'service-variations?serviceID=spectranet';
 
         // Fetch data from API
         $response = @file_get_contents($url);
@@ -34,8 +34,8 @@ class SmileDataPlanSeeder extends Seeder
 
         $variations = $data['content']['variations'];
 
-        // Delete existing Smile plans (datanetwork = 5)
-        DataPlan::where('datanetwork', 5)->delete();
+        // Delete existing Spectranet plans (datanetwork = 6)
+        DataPlan::where('datanetwork', 6)->delete();
 
         $count = 0;
         foreach ($variations as $variation) {
@@ -43,7 +43,7 @@ class SmileDataPlanSeeder extends Seeder
             $variationCode = $variation['variation_code'];
             $variationAmount = floatval($variation['variation_amount']);
 
-            // Exclude variations with "SmileVoice" in the name
+            // Exclude variations with "SmileVoice" in the name (just in case)
             if (stripos($name, 'SmileVoice') !== false) {
                 continue;
             }
@@ -59,23 +59,27 @@ class SmileDataPlanSeeder extends Seeder
             $agentPrice = $variationAmount * 1.01;   // 1% increase
             $vendorPrice = $variationAmount * 1.012; // 1.2% increase
 
-            // Create DataPlan
-            DataPlan::updateOrCreate([
-                'planid' => $variationCode,
-                'name' => $name,
-                'price' => $variationAmount,
-                'userprice' => number_format($userPrice, 2, '.', ''),
-                'agentprice' => number_format($agentPrice, 2, '.', ''),
-                'vendorprice' => number_format($vendorPrice, 2, '.', ''),
-                'day' => $day,
-                'type' => 'SME',
-                'datanetwork' => 5,
-                'service_type' => 'vtpass',
-            ]);
+            // Create or Update DataPlan
+            DataPlan::updateOrCreate(
+                [
+                    'planid' => $variationCode,
+                    'datanetwork' => 6,
+                ],
+                [
+                    'name' => $name,
+                    'price' => $variationAmount,
+                    'userprice' => number_format($userPrice, 2, '.', ''),
+                    'agentprice' => number_format($agentPrice, 2, '.', ''),
+                    'vendorprice' => number_format($vendorPrice, 2, '.', ''),
+                    'day' => $day,
+                    'type' => 'SME',
+                    'service_type' => 'vtpass',
+                ]
+            );
 
             $count++;
         }
 
-        $this->command->info("Successfully seeded {$count} Smile data plans from API.");
+        $this->command->info("Successfully seeded {$count} Spectranet data plans from API.");
     }
 }

@@ -45,7 +45,6 @@ class ExamCardController extends Controller
         if ($this->isVtuAfricaEnabled()) {
             return $this->purchaseVtuAfricaExamPin($request, $user);
         }
-        return;
         // --- LEGACY FLOW ---
         $validatedData = $request->validate([
             'provider_id' => 'required',

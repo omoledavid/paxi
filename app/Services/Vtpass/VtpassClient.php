@@ -78,6 +78,10 @@ class VtpassClient
             $content = $response->getBody()->getContents();
             $decoded = json_decode($content, true);
 
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::error("VTpass JSON Decode Error: " . json_last_error_msg());
+            }
+
             Log::info("VTpass Response: $endpoint", $decoded ?? []);
 
             return $decoded ?? [];
