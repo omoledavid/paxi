@@ -93,7 +93,7 @@ class EpinController extends Controller
         $validated = $request->validated();
 
         if (!$this->isNellobytesEnabled()) {
-            return $this->error('NelloBytes is currently disabled', 400);
+            return $this->error('Epin is currently unavailable', 400);
         }
 
         // Verify PIN
