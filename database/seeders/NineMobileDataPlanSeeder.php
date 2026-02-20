@@ -53,9 +53,9 @@ class NineMobileDataPlanSeeder extends Seeder
             }
 
             // Calculate prices with percentage increases
-            $userPrice = $variationAmount * 1.015;   // 1.5% increase
-            $agentPrice = $variationAmount * 1.01;   // 1% increase
-            $vendorPrice = $variationAmount * 1.012; // 1.2% increase
+            $userPrice = $variationAmount;   // 1.5% increase
+            $agentPrice = $variationAmount;   // 1% increase
+            $vendorPrice = $variationAmount; // 1.2% increase
 
             // Create DataPlan
             DataPlan::updateOrCreate([
