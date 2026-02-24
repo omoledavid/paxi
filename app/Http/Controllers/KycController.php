@@ -34,9 +34,7 @@ class KycController extends Controller
                 ->exists();
 
             if ($ninExists) {
-                return $this->error([
-                    'message' => 'The provided NIN has already been used by another user.',
-                ], 422);
+                return $this->error('The provided NIN has already been used by another user.', 422);
             }
         }
 
