@@ -36,6 +36,11 @@ class AuthController extends Controller
 
             return $this->error($response, 400);
         }
+        //check if phone number exist
+        $phoneExist = User::where('sPhone', NigerianPhone::normalize($validatedData['sPhone']))->first();
+        if ($phoneExist) {
+            return $this->error('Phone number already exist.', 400);
+        }
         $apiKey = apiKeyGen();
         $verCode = verificationCode(6);
         $userType = 0;
@@ -49,7 +54,7 @@ class AuthController extends Controller
         $user->sState = $validatedData['state'];
         $user->sType = $userType;
         $user->sApiKey = $apiKey;
-        $user->sReferal = $validatedData['referral'];
+        $user->sReferal = $validatedData['referral'] ?? null;
         $user->sPin = $validatedData['pin'];
         $user->sVerCode = $verCode;
         $user->sVerCodeExpiry = now()->addMinutes(1);
