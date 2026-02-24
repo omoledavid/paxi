@@ -28,6 +28,18 @@ class KycController extends Controller
     {
         $user = $request->user();
 
+        if ($request->filled('nin')) {
+            $ninExists = KycAttempt::where('nin', $request->nin)
+                ->where('user_id', '!=', $user->sId)
+                ->exists();
+
+            if ($ninExists) {
+                return $this->error([
+                    'message' => 'The provided NIN has already been used by another user.',
+                ], 422);
+            }
+        }
+
         try {
             $result = $this->kycService->initiateKyc($user, $request->validated());
 
