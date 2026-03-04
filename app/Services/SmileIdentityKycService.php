@@ -93,6 +93,7 @@ class SmileIdentityKycService
 
         } catch (Exception $e) {
             $attempt->update(['status' => 'failed', 'rejection_reason' => $e->getMessage()]);
+            \Log::info('KYC Initiation Failed: '.$e->getMessage());
             throw $e;
         }
     }
