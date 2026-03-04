@@ -123,7 +123,7 @@ class SmileIdentityKycService
         $resultText = $payload['ResultText'] ?? '';
 
         // 0810 is standard success
-        $isApproved = $resultCode == '0810';
+        $isApproved = $resultCode == '0810' || $resultCode == '1012';
 
         // NIN Match check (NIN V2 specific)
         $actions = $payload['Actions'] ?? [];
