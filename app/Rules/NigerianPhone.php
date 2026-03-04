@@ -21,22 +21,36 @@ class NigerianPhone implements ValidationRule
         '0813',
         '0814',
         '0816',
+        '0903',
+        '0906',
+        '0913',
+        '0916',
         // Glo
         '0705',
         '0805',
         '0807',
         '0811',
         '0815',
-        '0817',
+        '0905',
+        '0915',
         // Airtel
         '0701',
         '0708',
         '0802',
         '0808',
         '0812',
-        // T2-Mobile
-        '0909',
+        '0901',
+        '0902',
+        '0904',
+        '0907',
+        '0911',
+        '0912',
+        // T2 || 9mobile (formerly Etisalat)
         '0809',
+        '0817',
+        '0818',
+        '0908',
+        '0909',
     ];
 
     /**
@@ -49,7 +63,7 @@ class NigerianPhone implements ValidationRule
 
         // Handle international format: convert 234XXXXXXXXXX to 0XXXXXXXXXX
         if (str_starts_with($phone, '234') && strlen($phone) === 13) {
-            $phone = '0'.substr($phone, 3);
+            $phone = '0' . substr($phone, 3);
         }
 
         // Check if the phone number has exactly 11 digits
@@ -60,7 +74,7 @@ class NigerianPhone implements ValidationRule
         }
 
         // Check if it starts with 0
-        if (! str_starts_with($phone, '0')) {
+        if (!str_starts_with($phone, '0')) {
             $fail('The :attribute must start with 0.');
 
             return;
@@ -70,8 +84,8 @@ class NigerianPhone implements ValidationRule
         $prefix = substr($phone, 0, 4);
 
         // Check if the prefix is valid
-        if (! in_array($prefix, self::VALID_PREFIXES, true)) {
-            $fail('The phone number must be a valid Nigerian phone number (MTN, Glo, Airtel, or T2-Mobile).');
+        if (!in_array($prefix, self::VALID_PREFIXES, true)) {
+            $fail('The phone number must be a valid Nigerian phone number (MTN, Glo, Airtel, or 9mobile).');
 
             return;
         }
@@ -88,7 +102,7 @@ class NigerianPhone implements ValidationRule
 
         // Convert 234 format to 0 format
         if (str_starts_with($phone, '234') && strlen($phone) === 13) {
-            $phone = '0'.substr($phone, 3);
+            $phone = '0' . substr($phone, 3);
         }
 
         return $phone;

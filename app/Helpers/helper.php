@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
-require_once __DIR__.'/wallet.php';
+require_once __DIR__ . '/wallet.php';
 
 function apiKeyGen()
 {
@@ -22,7 +22,7 @@ function verificationCode($length)
     }
 
     $min = pow(10, $length - 1);
-    $max = (int) ($min - 1).'9';
+    $max = (int) ($min - 1) . '9';
 
     return random_int($min, $max);
 }
@@ -50,7 +50,7 @@ function normalizeNigerianPhone(string $phone): string
 
     // Convert 234 format to 0 format
     if (str_starts_with($phone, '234') && strlen($phone) === 13) {
-        $phone = '0'.substr($phone, 3);
+        $phone = '0' . substr($phone, 3);
     }
 
     return $phone;
@@ -94,10 +94,10 @@ function verifyNetwork(string $phone, string $selectedNetwork = ''): array
 
     // Define network patterns
     $patterns = [
-        'MTN' => '/0702|0704|0803|0806|0703|0706|0813|0816|0810|0814|0903|0906|0913/',
-        'GLO' => '/091|0805|0807|0705|0815|0811|0905/',
-        'GIFTING' => '/0702|0704|0803|0806|0703|0706|0813|0816|0810|0814|0903|0906|0913/',
-        'AIRTEL' => '/0802|0808|0708|0812|0701|0901|0902|0907|0912/',
+        'MTN' => '/0702|0704|0803|0806|0703|0706|0813|0816|0810|0814|0903|0906|0913|0916/',
+        'GLO' => '/0805|0807|0705|0815|0811|0905|0915/',
+        'GIFTING' => '/0702|0704|0803|0806|0703|0706|0813|0816|0810|0814|0903|0906|0913|0916/',
+        'AIRTEL' => '/0802|0808|0708|0812|0701|0901|0902|0904|0907|0911|0912/',
         '9MOBILE' => '/0809|0818|0817|0908|0909/',
         'NTEL' => '/0804/',
     ];
@@ -132,7 +132,7 @@ function verifyNetwork(string $phone, string $selectedNetwork = ''): array
 
 function generateTransactionRef()
 {
-    $tranId = rand(1000, 9999).time();
+    $tranId = rand(1000, 9999) . time();
 
     return $tranId;
 }
@@ -158,10 +158,10 @@ function validateMeterNumber($provider, $meternumber, $metertype, $apiKey)
         'Content-Type' => 'application/json',
         'Token' => "Token $apiKey",
     ])->post("$siteUrl/api838190/electricity/verify/", [
-        'provider' => $provider,
-        'meternumber' => $meternumber,
-        'metertype' => $metertype,
-    ]);
+                'provider' => $provider,
+                'meternumber' => $meternumber,
+                'metertype' => $metertype,
+            ]);
 
     $result = $response->json();
 
@@ -198,7 +198,7 @@ function TransactionLog(
 function gs($key = null)
 {
     $general = Cache::get('GeneralSetting');
-    if (! $general) {
+    if (!$general) {
         $general = GeneralSetting::first();
         Cache::put('GeneralSetting', $general);
     }
@@ -214,7 +214,7 @@ function networkName($code)
         '1' => 'MTN',
         '2' => 'GLO',
         '4' => 'Airtel',
-        '3' => 'T2-Mobile',
+        '3' => '9Mobile',
     ];
 
     return $networks[$code] ?? 'Unknown Network';
