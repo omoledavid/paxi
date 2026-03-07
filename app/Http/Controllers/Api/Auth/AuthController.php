@@ -57,7 +57,7 @@ class AuthController extends Controller
         $user->sReferal = $validatedData['referral'] ?? null;
         $user->sPin = $validatedData['pin'];
         $user->sVerCode = $verCode;
-        $user->sVerCodeExpiry = now()->addMinutes(1);
+        $user->sVerCodeExpiry = now()->addMinutes(5);
         $user->sRegStatus = 3;
         $user->save();
 
