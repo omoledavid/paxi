@@ -37,13 +37,15 @@ class AuthorizationController extends Controller
             'email' => 'required|string|email|max:255|exists:subscribers,sEmail',
         ]);
         $user = User::query()->where('sEmail', $validatedData['email'])->first();
+        $vCode = verificationCode(6);
 
-        $user->sVerCode = verificationCode(6);
-        $user->sVerCodeExpiry = Carbon::now()->addMinutes(1);
+        $user->sVerCode = $vCode;
+        $user->sVerCodeExpiry = Carbon::now()->addMinutes(5);
         $user->updated_at = Carbon::now();
         $user->save();
-        $code = $user->sVerCode;
-        sendVerificationCode($code, $user->sEmail);
+        // refresh user
+        $user->refresh();
+        sendVerificationCode($vCode, $user->sEmail);
 
         return $this->ok('Verification code has been sent', new UserResource($user));
 

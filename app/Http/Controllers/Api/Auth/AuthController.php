@@ -60,6 +60,8 @@ class AuthController extends Controller
         $user->sVerCodeExpiry = now()->addMinutes(5);
         $user->sRegStatus = 3;
         $user->save();
+        // refresh user
+        $user->refresh();
 
         sendVerificationCode($verCode, $user->sEmail);
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
