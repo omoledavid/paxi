@@ -20,7 +20,7 @@ class AuthorizationController extends Controller
         if ($user->sRegStatus === 3) {
             $verCode = $user->sVerCode;
             // Update expiry when resending
-            $user->sVerCodeExpiry = Carbon::now()->addMinutes(1);
+            $user->sVerCodeExpiry = Carbon::now()->addMinutes(5);
             $user->save();
             sendVerificationCode($verCode, $user->sEmail);
 
