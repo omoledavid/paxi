@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ApiConfig;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -13,10 +14,13 @@ class GatewayApiService
 
     protected string $baseUrl = 'https://gatewayapi.com/rest';
 
+    protected $config;
+
     public function __construct()
     {
-        $this->apiToken = config('services.gatewayapi.token');
-        $this->sender = config('services.gatewayapi.sender', 'Paxi');
+        $this->config = ApiConfig::all();
+        $this->apiToken = getConfigValue($this->config, 'gatewayApiToken') ?: config('services.gatewayapi.token');
+        $this->sender = getConfigValue($this->config, 'gatewaySender') ?: config('services.gatewayapi.sender', 'Paxi');
     }
 
     /**

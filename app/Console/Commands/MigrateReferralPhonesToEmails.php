@@ -16,7 +16,7 @@ class MigrateReferralPhonesToEmails extends Command
 
     /**
      * The console command description.
-     *
+     
      * @var string
      */
     protected $description = 'Migrate legacy phone-based referrals (sReferal) to email-based referrals';
