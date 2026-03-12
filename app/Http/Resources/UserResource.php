@@ -33,7 +33,7 @@ class UserResource extends JsonResource
                 'email_verified' => $this->sRegStatus == 0,
                 'mobile_verified' => $this->sMobileVerified ?? false,
                 'verification_status' => ($this->sRegStatus == 0) && ($this->sMobileVerified ?? false),
-                'referral_link' => env('FRONTEND_URL').'/auth/sign-up?referral='.$this->username,
+                'referral_link' => env('FRONTEND_REF_URL').'/auth/sign-up?referral='.$this->username,
                 'nin_status' => $this->nin_verified,
                 'kyc_status' => $this->kyc_status,
                 'banks' => [
