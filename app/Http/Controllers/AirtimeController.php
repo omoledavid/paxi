@@ -17,6 +17,7 @@ use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Vtpass\AirtimeService as VtpassAirtimeService;
 use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\AirtimeService as VtuAfricaAirtimeService;
+use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
@@ -137,6 +138,8 @@ class AirtimeController extends Controller
                 $payableAmount
             );
 
+            ReferralBonusService::credit($user, $payableAmount, ReferralBonusService::AIRTIME, $transactionRef);
+
             return $this->ok('Airtime purchase request is being processed', [
                 'reference' => $transactionRef,
             ]);
@@ -198,6 +201,8 @@ class AirtimeController extends Controller
 
                 DB::commit();
 
+                ReferralBonusService::credit($user, $validated['amount'], ReferralBonusService::AIRTIME, $transactionRef);
+
                 return $this->ok('Airtime purchased successfully', [
                     'reference' => $transactionRef,
                     'vtpass_response' => $result
@@ -241,6 +246,8 @@ class AirtimeController extends Controller
         //     transactionRef: $transactionRef,
         //     wrapInTransaction: false,
         // );
+
+        ReferralBonusService::credit($user, $validated['amount'], ReferralBonusService::AIRTIME, $transactionRef);
 
         return $this->ok('Airtime purchased successfully', [
             'reference' => $transactionRef,
@@ -357,6 +364,7 @@ class AirtimeController extends Controller
 
             DB::commit();
 
+            ReferralBonusService::credit($user, $payableAmount, ReferralBonusService::AIRTIME, $transactionRef);
 
             return $this->ok('Airtime purchased successfully', [
                 'reference' => $transactionRef,

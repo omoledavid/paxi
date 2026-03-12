@@ -1,38 +1,56 @@
 <?php
 
 use App\Models\User;
-use Illuminate\Auth\Events\Verified;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\URL;
 
-test('email can be verified', function () {
-    $user = User::factory()->unverified()->create();
+test('email can be verified with valid code', function () {
+    $user = User::factory()->create([
+        'sVerCode' => '123456',
+        'sVerCodeExpiry' => now()->addMinutes(5),
+        'sRegStatus' => 3,
+    ]);
 
-    Event::fake();
+    $response = $this->postJson('/api/verify-email', [
+        'code' => '123456',
+        'email' => $user->sEmail,
+    ]);
 
-    $verificationUrl = URL::temporarySignedRoute(
-        'verification.verify',
-        now()->addMinutes(60),
-        ['id' => $user->id, 'hash' => sha1($user->email)]
-    );
-
-    $response = $this->actingAs($user)->get($verificationUrl);
-
-    Event::assertDispatched(Verified::class);
-    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
-    $response->assertRedirect(config('app.frontend_url').'/dashboard?verified=1');
+    $response->assertStatus(200);
+    $user->refresh();
+    expect($user->sVerCode)->toBe(0);
+    expect($user->sRegStatus)->toBe(0);
+    expect($user->sVerCodeExpiry)->toBeNull();
 });
 
-test('email is not verified with invalid hash', function () {
-    $user = User::factory()->unverified()->create();
+test('email verification fails with invalid code', function () {
+    $user = User::factory()->create([
+        'sVerCode' => '123456',
+        'sVerCodeExpiry' => now()->addMinutes(5),
+        'sRegStatus' => 3,
+    ]);
 
-    $verificationUrl = URL::temporarySignedRoute(
-        'verification.verify',
-        now()->addMinutes(60),
-        ['id' => $user->id, 'hash' => sha1('wrong-email')]
-    );
+    $response = $this->postJson('/api/verify-email', [
+        'code' => '999999',
+        'email' => $user->sEmail,
+    ]);
 
-    $this->actingAs($user)->get($verificationUrl);
+    $response->assertStatus(400);
+    $user->refresh();
+    expect($user->sRegStatus)->toBe(3);
+});
 
-    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
+test('email verification fails with expired code', function () {
+    $user = User::factory()->create([
+        'sVerCode' => '123456',
+        'sVerCodeExpiry' => now()->subMinutes(1),
+        'sRegStatus' => 3,
+    ]);
+
+    $response = $this->postJson('/api/verify-email', [
+        'code' => '123456',
+        'email' => $user->sEmail,
+    ]);
+
+    $response->assertStatus(400);
+    $user->refresh();
+    expect($user->sRegStatus)->toBe(3);
 });

@@ -39,6 +39,7 @@ function createTestUser(): User
         'sPhone' => '080'.random_int(10000000, 99999999),
         'sPass' => bcrypt('secret'),
         'sRegStatus' => 0,
+        'sApiKey' => Str::random(60),
     ]);
 }
 

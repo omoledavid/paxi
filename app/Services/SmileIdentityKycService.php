@@ -21,17 +21,34 @@ class SmileIdentityKycService
 
     public function __construct()
     {
-        $partnerId = config('services.smile_identity.partner_id');
-        $apiKey = config('services.smile_identity.api_key');
+        // Fetch settings from database (apiconfigs table)
+        $settings = $this->getSmileIdSettings();
+
+        $partnerId = $settings['smilePartnerId'] ?? config('services.smile_identity.partner_id');
+        $apiKey = $settings['smileApiKey'] ?? config('services.smile_identity.api_key');
 
         if (empty($partnerId) || empty($apiKey)) {
-            throw new Exception('Smile Identity configuration is missing. Please check your .env file for SMILE_IDENTITY_PARTNER_ID and SMILE_IDENTITY_API_KEY.');
+            throw new Exception('Smile Identity configuration is missing. Please configure Smile ID settings in the admin panel.');
         }
 
         $this->partnerId = $partnerId;
         $this->apiKey = $apiKey;
-        $this->defaultCallback = config('services.smile_identity.callback_url') ?? '';
-        $this->sidServerId = config('services.smile_identity.env') === 'production' ? '1' : '0';
+        $this->defaultCallback = $settings['smileCallbackUrl'] ?? config('services.smile_identity.callback_url') ?? '';
+        $env = $settings['smileEnv'] ?? config('services.smile_identity.env') ?? 'sandbox';
+        $this->sidServerId = $env === 'production' ? '1' : '0';
+    }
+
+    /**
+     * Fetch Smile ID settings from database
+     */
+    private function getSmileIdSettings(): array
+    {
+        $settings = \DB::table('apiconfigs')
+            ->whereIn('name', ['smilePartnerId', 'smileApiKey', 'smileCallbackUrl', 'smileEnv', 'smileStatus'])
+            ->pluck('value', 'name')
+            ->toArray();
+
+        return $settings;
     }
 
     /**

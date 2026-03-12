@@ -17,6 +17,7 @@ use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Vtpass\DataService as VtpassDataService;
 use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\DataService as VtuAfricaDataService;
+use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\JsonResponse;
@@ -141,6 +142,8 @@ class DataController extends Controller
 
                 DB::commit();
 
+                ReferralBonusService::credit($user, $amount, ReferralBonusService::DATA, $transRef);
+
                 return $this->ok('Data purchase successful', $response);
 
             } catch (\Exception $e) {
@@ -263,6 +266,8 @@ class DataController extends Controller
 
                 DB::commit();
 
+                ReferralBonusService::credit($user, $amount, ReferralBonusService::DATA, $txRef);
+
                 return $this->ok('Data purchase successful', $response);
 
             } catch (\Exception $e) {
@@ -292,6 +297,8 @@ class DataController extends Controller
 
         // Handle API response
         if ($response->successful() && $result['status'] === 'success') {
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::DATA, $transRef);
+
             return $this->ok('success', [
                 'ref' => $transRef,
             ]);
@@ -399,6 +406,8 @@ class DataController extends Controller
             );
 
             DB::commit();
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::DATA, $transRef);
 
             return $this->ok('Data purchase successful', [
                 'reference' => $transRef,

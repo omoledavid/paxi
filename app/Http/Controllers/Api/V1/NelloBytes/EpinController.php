@@ -9,9 +9,11 @@ use App\Http\Requests\NelloBytes\PrintEpinRequest;
 use App\Mail\SendEpin;
 use App\Models\ApiConfig;
 use App\Models\Epin;
+use App\Models\EpinPrice;
 use App\Models\NelloBytesTransaction;
 use App\Services\NelloBytes\EpinService;
 use App\Services\NelloBytes\NelloBytesTransactionService;
+use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -40,32 +42,31 @@ class EpinController extends Controller
     public function getDiscounts(): JsonResponse
     {
         try {
-            // We now use hardcoded rates in applyProductDiscount for the supported networks,
-            // so we don't need to fetch external discounts here.
-            $discounts = [];
-            $prices = [100, 200, 500];
-            $networkIds = ['01', '02', '03', '04'];
+            $user = auth()->user();
+            $role = $user ? (int) $user->sType : 0;
+
+            // Load all EPIN prices from DB, grouped by network
+            $allPrices = EpinPrice::orderBy('network_id')->orderBy('amount')->get();
+            $grouped = $allPrices->groupBy('network_id');
 
             $formattedDiscounts = [];
-            $networkMap = [
-                '01' => 'MTN',
-                '02' => 'Glo',
-                '03' => 'T2-Mobile',
-                '04' => 'Airtel',
-            ];
 
-            foreach ($networkIds as $networkId) {
+            foreach ($grouped as $networkId => $prices) {
                 $networkPrices = [];
-                foreach ($prices as $price) {
-                    $discountedAmount = $this->applyProductDiscount((float) $price, $networkId, $discounts);
+                foreach ($prices as $priceRecord) {
+                    $payable = match ($role) {
+                        2 => $priceRecord->agent_price,
+                        3 => $priceRecord->vendor_price,
+                        default => $priceRecord->user_price,
+                    };
                     $networkPrices[] = [
-                        'amount' => $price,
-                        'payable' => $discountedAmount,
+                        'amount' => $priceRecord->amount,
+                        'payable' => $payable,
                     ];
                 }
 
                 $formattedDiscounts[] = [
-                    'network' => $networkMap[$networkId] ?? 'Unknown',
+                    'network' => $prices->first()->network_name,
                     'network_id' => $networkId,
                     'prices' => $networkPrices,
                 ];
@@ -112,14 +113,15 @@ class EpinController extends Controller
 
         DB::beginTransaction();
         try {
-            // Fetch discounts first
-            $discounts = $this->epinService->getDiscounts();
+            $role = (int) $user->sType;
 
-            // Apply discount to get the final amount to charge
+            // Apply discount from DB-stored per-role pricing
             $amount = $this->applyProductDiscount(
                 $originalAmount,
                 $validated['mobile_network'],
-                $discounts ?? []
+                (int) $validated['value'],
+                (int) $validated['quantity'],
+                $role
             );
 
             // Create transaction record with discounted amount
@@ -203,6 +205,8 @@ class EpinController extends Controller
 
             // Refresh transaction to get updated nellobytes_ref
             $transaction->refresh();
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::AIRTIME, $transactionRef);
 
             return $this->ok('EPIN card printed successfully', [
                 'transaction_ref' => $transactionRef,
@@ -323,84 +327,42 @@ class EpinController extends Controller
     }
 
     /**
-     * Apply product discount to amount based on mobile network
+     * Apply product discount to amount based on mobile network and user role.
+     * Reads per-denomination prices from epin_prices table.
      *
-     * @param  float  $amount  The original amount
+     * @param  float  $amount  The original total amount (value * quantity)
      * @param  string  $networkId  The mobile network ID (01, 02, 03, 04)
-     * @param  array  $discountData  The discount data from API
-     * @return float The discounted amount
+     * @param  int  $value  The single denomination value (100, 200, 500)
+     * @param  int  $quantity  Number of EPINs
+     * @param  int  $role  User role (0=User, 2=Agent, 3=Vendor)
+     * @return float The discounted total amount
      */
-    private function applyProductDiscount(float $amount, string $networkId, array $discountData): float
+    private function applyProductDiscount(float $amount, string $networkId, int $value = 0, int $quantity = 1, int $role = 0): float
     {
-        // Hardcoded rates based on user request:
-        // MTN: 100->100 (1.0)
-        // Glo: 100->99 (0.99)
-        // Airtel: 100->98 (0.98)
-        // T2mobile: 100->96 (0.96)
-        $customRates = [
-            '01' => 1.0,   // MTN
-            '02' => 0.99,  // Glo
-            '04' => 0.98,  // Airtel
-            '03' => 0.96,  // T2-Mobile
-        ];
+        if ($value > 0) {
+            $payablePerUnit = EpinPrice::getPayablePrice($networkId, $value, $role);
+            $discountedAmount = $payablePerUnit * $quantity;
 
-        if (array_key_exists($networkId, $customRates)) {
-            $discountedAmount = $amount * $customRates[$networkId];
-            Log::info('Custom discount applied', [
+            Log::info('EPIN discount applied from DB', [
                 'network_id' => $networkId,
-                'original_amount' => $amount,
-                'rate' => $customRates[$networkId],
-                'discounted_amount' => $discountedAmount,
+                'value' => $value,
+                'quantity' => $quantity,
+                'role' => $role,
+                'payable_per_unit' => $payablePerUnit,
+                'discounted_total' => $discountedAmount,
             ]);
 
             return $discountedAmount;
         }
 
-        // Fallback to original logic if network ID isn't in our custom list (unlikely given the known IDs)
-        // Map network IDs to network names
-        $networkMap = [
-            '01' => 'MTN',
-            '02' => 'Glo',
-            '03' => 'T2-Mobile',
-            '04' => 'Airtel',
-        ];
+        // Fallback: use discount rate for the total amount
+        $rate = EpinPrice::getDiscountRate($networkId, (int) $amount, $role);
+        $discountedAmount = $amount * $rate;
 
-        // Get the network name from the ID
-        $networkName = $networkMap[$networkId] ?? null;
-
-        if (!$networkName) {
-            // If network not found, return original amount
-            Log::warning('Unknown network ID for discount calculation', ['network_id' => $networkId]);
-
-            return $amount;
-        }
-
-        // Check if discount data exists for this network
-        if (!isset($discountData['MOBILE_NETWORK'][$networkName])) {
-            Log::warning('No discount data found for network', ['network' => $networkName]);
-
-            return $amount;
-        }
-
-        $networkDiscounts = $discountData['MOBILE_NETWORK'][$networkName];
-
-        // Get the first discount entry (assuming one discount per network)
-        if (empty($networkDiscounts) || !isset($networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'])) {
-            Log::warning('Invalid discount structure for network', ['network' => $networkName]);
-
-            return $amount;
-        }
-
-        $discountMultiplier = (float) $networkDiscounts[0]['PRODUCT_DISCOUNT_AMOUNT'];
-
-        // Calculate and return discounted amount
-        $discountedAmount = $amount * $discountMultiplier;
-
-        Log::info('Discount applied', [
-            'network' => $networkName,
+        Log::info('EPIN discount applied (rate fallback)', [
+            'network_id' => $networkId,
             'original_amount' => $amount,
-            'discount_multiplier' => $discountMultiplier,
-            'discount_percentage' => $networkDiscounts[0]['PRODUCT_DISCOUNT'] ?? 'N/A',
+            'rate' => $rate,
             'discounted_amount' => $discountedAmount,
         ]);
 

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Rules\NigerianPhone;
+use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -247,6 +248,8 @@ class UserController extends Controller
             // 10. Commit the transaction after everything is successful
             DB::commit();
 
+            //ReferralBonusService::credit($user, $transferAmount, ReferralBonusService::WALLET, $senderResult['transaction_ref']);
+
             // 11. Return minimal information in the response
             return $this->ok('Transfer completed successfully', [
                 'balance' => $senderResult['user']->sWallet,
@@ -263,5 +266,116 @@ class UserController extends Controller
 
             return $this->error('Transaction failed. Please try again later.');
         }
+    }
+
+    public function checkUsername(string $username)
+    {
+        if (! preg_match('/^[a-zA-Z0-9_]+$/', $username) || strlen($username) < 3 || strlen($username) > 20) {
+            return $this->error('Username must be 3-20 characters and contain only letters, numbers, and underscores.', 422);
+        }
+
+        $exists = User::where('username', $username)->exists();
+
+        return $this->ok('success', [
+            'available' => ! $exists,
+        ]);
+    }
+
+    public function setUsername(Request $request)
+    {
+        $user = auth()->user();
+
+        if ($user->username) {
+            return $this->error('Username has already been set and cannot be changed.', 422);
+        }
+
+        $request->validate([
+            'username' => 'required|alpha_dash|min:3|max:20|unique:subscribers,username',
+        ]);
+
+        $user->username = $request->username;
+        $user->save();
+
+        return $this->ok('Username set successfully.', new UserResource($user));
+    }
+
+    public function referralLeaderboard()
+    {
+        // Get weekly leaderboard (last 7 days) - using a subquery approach
+        $weeklyLeaderboard = DB::table('subscribers as referred')
+            ->select(
+                'referred.sReferal as username',
+                DB::raw('COUNT(*) as referral_count')
+            )
+            ->whereNotNull('referred.sReferal')
+            ->where('referred.sReferal', '!=', '')
+            ->where('referred.created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 7 DAY)'))
+            ->groupBy('referred.sReferal')
+            ->orderByDesc('referral_count')
+            ->limit(10)
+            ->get()
+            ->map(function ($entry, $index) {
+                // Get referrer details separately
+                $referrer = DB::table('subscribers')
+                    ->where('username', $entry->username)
+                    ->first();
+                
+                $email = $referrer?->sEmail ?? $entry->username;
+                // Mask email for positions 4-10 (index 3-9)
+                if ($index >= 3 && $email && str_contains($email, '@')) {
+                    $parts = explode('@', $email);
+                    $email = substr($parts[0], 0, 3) . '***@' . $parts[1];
+                }
+                
+                return [
+                    'rank' => $index + 1,
+                    'username' => $entry->username,
+                    'email' => $email,
+                    'firstname' => $referrer?->sFname ?? '',
+                    'lastname' => $referrer?->sLname ?? '',
+                    'referral_count' => (int) $entry->referral_count,
+                ];
+            });
+
+        // Get monthly leaderboard (last 30 days) - using a subquery approach
+        $monthlyLeaderboard = DB::table('subscribers as referred')
+            ->select(
+                'referred.sReferal as username',
+                DB::raw('COUNT(*) as referral_count')
+            )
+            ->whereNotNull('referred.sReferal')
+            ->where('referred.sReferal', '!=', '')
+            ->where('referred.created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 30 DAY)'))
+            ->groupBy('referred.sReferal')
+            ->orderByDesc('referral_count')
+            ->limit(10)
+            ->get()
+            ->map(function ($entry, $index) {
+                // Get referrer details separately
+                $referrer = DB::table('subscribers')
+                    ->where('username', $entry->username)
+                    ->first();
+                
+                $email = $referrer?->sEmail ?? $entry->username;
+                // Mask email for positions 4-10 (index 3-9)
+                if ($index >= 3 && $email && str_contains($email, '@')) {
+                    $parts = explode('@', $email);
+                    $email = substr($parts[0], 0, 3) . '***@' . $parts[1];
+                }
+                
+                return [
+                    'rank' => $index + 1,
+                    'username' => $entry->username,
+                    'email' => $email,
+                    'firstname' => $referrer?->sFname ?? '',
+                    'lastname' => $referrer?->sLname ?? '',
+                    'referral_count' => (int) $entry->referral_count,
+                ];
+            });
+
+        return $this->ok('success', [
+            'weekly' => $weeklyLeaderboard,
+            'monthly' => $monthlyLeaderboard,
+        ]);
     }
 }

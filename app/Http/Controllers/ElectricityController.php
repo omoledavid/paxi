@@ -20,6 +20,7 @@ use App\Services\Paystack\ElectricityService as PaystackElectricityService;
 use App\Services\Paystack\PaystackTransactionService;
 use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\ElectricityService as VtuAfricaElectricityService;
+use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
@@ -167,6 +168,8 @@ class ElectricityController extends Controller
 
         // Handle API response
         if ($response->successful() && $result['status'] === 'success') {
+            ReferralBonusService::credit($user, $validatedData['amount'], ReferralBonusService::METER, $transRef);
+
             return $this->ok('success', [
                 'ref' => $transRef,
             ]);
@@ -434,6 +437,8 @@ class ElectricityController extends Controller
             }
             DB::commit();
 
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
+
             return $this->ok('Electricity purchase successful', $response);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -517,6 +522,8 @@ class ElectricityController extends Controller
 
             DB::commit();
 
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
+
             return $this->ok('Electricity purchase successful', $response);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -589,6 +596,8 @@ class ElectricityController extends Controller
             }
 
             DB::commit();
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
 
             return $this->ok('Electricity purchase successful', $response);
 
@@ -728,6 +737,8 @@ class ElectricityController extends Controller
             }
 
             DB::commit();
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
 
             return $this->ok('Electricity purchase successful', [
                 'reference' => $transRef,

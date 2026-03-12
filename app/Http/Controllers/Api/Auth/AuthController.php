@@ -24,6 +24,7 @@ class AuthController extends Controller
         $validatedData = request()->validate([
             'fname' => 'required',
             'lname' => 'required',
+            'username' => 'required|alpha_dash|min:3|max:20|unique:subscribers,username',
             'sEmail' => 'required|email|unique:subscribers',
             'sPhone' => ['required', 'unique:subscribers', new NigerianPhone],
             'password' => ['required', Password::defaults(), 'confirmed'],
@@ -41,6 +42,14 @@ class AuthController extends Controller
         if ($phoneExist) {
             return $this->error('Phone number already exist.', 400);
         }
+        $referralUsername = $validatedData['referral'] ?? null;
+        if ($referralUsername) {
+            $referrer = User::where('username', $referralUsername)->first();
+            if (! $referrer) {
+                return $this->error('The referral code (username) does not exist.', 422);
+            }
+        }
+
         $apiKey = apiKeyGen();
         $verCode = verificationCode(6);
         $userType = 0;
@@ -48,13 +57,14 @@ class AuthController extends Controller
         $user = new User;
         $user->sFname = $validatedData['fname'];
         $user->sLname = $validatedData['lname'];
+        $user->username = $validatedData['username'];
         $user->sEmail = $validatedData['sEmail'];
         $user->sPhone = NigerianPhone::normalize($validatedData['sPhone']);
         $user->sPass = passwordHash($validatedData['password']);
         $user->sState = $validatedData['state'];
         $user->sType = $userType;
         $user->sApiKey = $apiKey;
-        $user->sReferal = $validatedData['referral'] ?? null;
+        $user->sReferal = $referralUsername;
         $user->sPin = $validatedData['pin'];
         $user->sVerCode = $verCode;
         $user->sVerCodeExpiry = now()->addMinutes(5);

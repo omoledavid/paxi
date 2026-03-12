@@ -1,13 +1,21 @@
 <?php
 
 test('new users can register', function () {
-    $response = $this->post('/register', [
-        'name' => 'Test User',
-        'email' => 'test@example.com',
-        'password' => 'password',
-        'password_confirmation' => 'password',
+    $response = $this->postJson('/api/register', [
+        'fname' => 'Test',
+        'lname' => 'User',
+        'username' => 'testuser123',
+        'sEmail' => 'test@example.com',
+        'sPhone' => '2348031234567',
+        'password' => 'Password1!',
+        'password_confirmation' => 'Password1!',
+        'state' => 'Lagos',
+        'pin' => '1234',
     ]);
 
-    $this->assertAuthenticated();
-    $response->assertNoContent();
+    $response->assertStatus(200);
+    $this->assertDatabaseHas('subscribers', [
+        'username' => 'testuser123',
+        'sEmail' => 'test@example.com',
+    ]);
 });

@@ -12,6 +12,7 @@ use App\Http\Controllers\ExamCardController;
 use App\Http\Controllers\GeneralController;
 use App\Http\Controllers\KycController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\Api\V1\Vtpass\AirtimeController as VtpassAirtimeController;
 use App\Http\Controllers\Api\V1\Vtpass\DataController as VtpassDataController;
 use App\Http\Controllers\Api\V1\Vtpass\TvController as VtpassTvController;
@@ -28,6 +29,7 @@ Route::controller(ForgotPasswordController::class)->group(function () {
     Route::post('password/verify-code', 'verifyCode')->middleware('throttle:10,120');
     Route::post('password/reset', 'reset')->middleware('throttle:5,60');
 });
+Route::get('check-username/{username}', [UserController::class, 'checkUsername'])->middleware('throttle:30,1');
 Route::post('verify-email', [AuthorizationController::class, 'emailVerification'])->middleware('throttle:10,240');
 Route::post('resend-verify/{type}', [AuthorizationController::class, 'sendVerifyCode'])->middleware(['throttle.verification:email', 'throttle:3,60']);
 Route::post('send-sms-code', [AuthorizationController::class, 'sendSmsVerificationCode'])->middleware('throttle:5,240');
@@ -45,6 +47,8 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     // User
     Route::apiResource('user', UserController::class);
     Route::post('wallet-transfer', [UserController::class, 'walletTransfer']);
+    Route::post('users/set-username', [UserController::class, 'setUsername']);
+    Route::get('referral-leaderboard', [UserController::class, 'referralLeaderboard']);
     // Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
     // Change password
@@ -93,12 +97,18 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::post('vendor', 'vendor');
         Route::get('support', 'supportInfo');
         Route::post('support', 'support');
-        Route::get('settings', 'settings');
     });
 
     // KYC
     Route::get('kyc/status/{job_id}', [KycController::class, 'status']);
     Route::post('kyc/initiate', [KycController::class, 'initiate']);
+
+    // Feedback
+    Route::prefix('feedback')->group(function () {
+        Route::get('/', [FeedbackController::class, 'index']);
+        Route::post('/', [FeedbackController::class, 'store']);
+        Route::get('/{id}', [FeedbackController::class, 'show']);
+    });
 
     // VTpass Integration
     Route::prefix('vtpass')->group(function () {
@@ -117,6 +127,8 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         Route::post('spectranet/purchase', [VtpassSpectranetController::class, 'purchase']);
     });
 });
+
+Route::get('settings', [GeneralController::class, 'settings']);
 
 // Webhooks (Public but Signed)
 Route::post('webhooks/smile-identity', [KycController::class, 'handleWebhook']);

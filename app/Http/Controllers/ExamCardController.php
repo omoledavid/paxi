@@ -10,6 +10,7 @@ use App\Models\ExamProvider;
 use App\Models\VtuAfricaTransaction;
 use App\Services\VtuAfrica\ExamPinService;
 use App\Services\VtuAfrica\VtuAfricaTransactionService;
+use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -76,6 +77,8 @@ class ExamCardController extends Controller
 
         // Handle API response
         if ($response->successful() && $result['status'] === 'success') {
+            ReferralBonusService::credit($user, $validatedData['quantity'] * 1, ReferralBonusService::EXAM, $transRef);
+
             return $this->ok('success', ['ref' => $transRef]);
         } else {
             return $this->error($result['msg'] ?? 'Server error occurred.');
@@ -173,6 +176,8 @@ class ExamCardController extends Controller
             );
 
             DB::commit();
+
+            ReferralBonusService::credit($user, $payableAmount, ReferralBonusService::EXAM, $transactionRef);
 
             return $this->ok('Exam PIN purchased successfully', [
                 'reference' => $transactionRef,

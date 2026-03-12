@@ -19,6 +19,7 @@ use App\Services\Paystack\PaystackTransactionService;
 use App\Services\Vtpass\TvSubscriptionService as VtpassTvService;
 use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\CableTvService as VtuAfricaCableTvService;
+use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
@@ -259,6 +260,8 @@ class CableTvController extends Controller
 
         // Handle API response
         if ($response->successful() && $result['status'] === 'success') {
+            ReferralBonusService::credit($user, $validatedData['price'], ReferralBonusService::CABLE, $transRef);
+
             return $this->ok('success', ['ref' => $transRef]);
         } else {
             return $this->error($result['msg'] ?? 'Server error occurred.');
@@ -437,6 +440,8 @@ class CableTvController extends Controller
             ]);
             DB::commit();
 
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::CABLE, $transRef);
+
             return $this->ok('CableTV purchase successful', $response);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -511,6 +516,8 @@ class CableTvController extends Controller
 
             DB::commit();
 
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::CABLE, $transRef);
+
             return $this->ok('CableTV purchase successful', $response);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -569,6 +576,8 @@ class CableTvController extends Controller
             );
 
             DB::commit();
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::CABLE, $transRef);
 
             return $this->ok('CableTV purchase successful', $response);
 
@@ -683,6 +692,8 @@ class CableTvController extends Controller
             ]);
 
             DB::commit();
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::CABLE, $transRef);
 
             return $this->ok('CableTV purchase successful', [
                 'reference' => $transRef,

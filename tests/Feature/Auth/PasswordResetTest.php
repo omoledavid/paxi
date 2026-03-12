@@ -1,38 +1,41 @@
 <?php
 
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
-use Illuminate\Support\Facades\Notification;
+use App\Models\PasswordReset;
 
-test('reset password link can be requested', function () {
-    Notification::fake();
-
+test('reset password code can be requested', function () {
     $user = User::factory()->create();
 
-    $this->post('/forgot-password', ['email' => $user->email]);
+    $response = $this->postJson('/api/password/email', [
+        'email' => $user->sEmail,
+    ]);
 
-    Notification::assertSentTo($user, ResetPassword::class);
+    $response->assertStatus(200);
+    $this->assertDatabaseHas('password_resets', [
+        'email' => $user->sEmail,
+    ]);
 });
 
-test('password can be reset with valid token', function () {
-    Notification::fake();
-
+test('password can be reset with valid code', function () {
     $user = User::factory()->create();
 
-    $this->post('/forgot-password', ['email' => $user->email]);
+    $response = $this->postJson('/api/password/email', [
+        'email' => $user->sEmail,
+    ]);
 
-    Notification::assertSentTo($user, ResetPassword::class, function (object $notification) use ($user) {
-        $response = $this->post('/reset-password', [
-            'token' => $notification->token,
-            'email' => $user->email,
-            'password' => 'password',
-            'password_confirmation' => 'password',
-        ]);
+    $response->assertStatus(200);
 
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertStatus(200);
+    $passwordReset = PasswordReset::where('email', $user->sEmail)->first();
 
-        return true;
-    });
+    $resetResponse = $this->postJson('/api/password/reset', [
+        'token' => $passwordReset->token,
+        'email' => $user->sEmail,
+        'password' => 'NewPassword1!',
+        'password_confirmation' => 'NewPassword1!',
+    ]);
+
+    $resetResponse->assertStatus(200);
+    $this->assertDatabaseMissing('password_resets', [
+        'email' => $user->sEmail,
+    ]);
 });

@@ -26,11 +26,20 @@ class UserFactory extends Factory
         return [
             'sFname' => fake()->firstName(),
             'sLname' => fake()->lastName(),
+            'username' => fake()->unique()->userName(),
             'sEmail' => fake()->unique()->safeEmail(),
-            'sPhone' => fake()->unique()->phoneNumber(),
+            'sPhone' => '234'.fake()->unique()->numerify('##########'),
+            'sPass' => substr(sha1(md5('password')), 3, 10),
+            'sState' => 'Lagos',
+            'kyc_status' => 'approved',
+            'sType' => 0,
+            'sApiKey' => Str::random(60),
+            'sPin' => 1234,
+            'sRegStatus' => 0,
+            'sMobileVerified' => true,
             'sRegDate' => now(),
-            'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            'sWallet' => 0,
+            'sRefWallet' => 0,
         ];
     }
 

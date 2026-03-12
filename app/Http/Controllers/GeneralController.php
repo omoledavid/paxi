@@ -148,6 +148,8 @@ class GeneralController extends Controller
             'terms' => gs('terms'),
             'privacy' => gs('privacy'),
             'about' => gs('about'),
+            'google_play_url' => gs('google_play_url'),
+            'apple_app_url' => gs('apple_app_url'),
         ]);
     }
 }
