@@ -324,7 +324,7 @@ class UserController extends Controller
                 // Mask email for positions 4-10 (index 3-9): show first 4 chars + ****
                 if ($email && str_contains($email, '@')) {
                     $parts = explode('@', $email);
-                    $email = substr($parts[0], 0, 4) . '****@' . $parts[1];
+                    $email = substr($parts[0], 0, 3) . '****@' . $parts[1];
                 }
                 
                 return [
@@ -360,7 +360,7 @@ class UserController extends Controller
                 // Mask email for positions 4-10 (index 3-9): show first 4 chars + ****
                 if ($email && str_contains($email, '@')) {
                     $parts = explode('@', $email);
-                    $email = substr($parts[0], 0, 4) . '****@' . $parts[1];
+                    $email = substr($parts[0], 0, 3) . '****@' . $parts[1];
                 }
                 
                 return [
