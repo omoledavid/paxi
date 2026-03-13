@@ -301,15 +301,30 @@ class UserController extends Controller
 
     public function referralLeaderboard()
     {
-        // Get weekly leaderboard (last 7 days) - using a subquery approach
+        // Get weekly leaderboard (last 7 days) - only count referrals that meet signup bonus criteria
         $weeklyLeaderboard = DB::table('subscribers as referred')
             ->select(
                 'referred.sReferal as username',
                 DB::raw('COUNT(*) as referral_count')
             )
+            ->join('subscribers as referrer', 'referrer.username', '=', 'referred.sReferal')
+            ->leftJoin('referral_commissions as rc', 'rc.role', '=', 'referrer.sType')
             ->whereNotNull('referred.sReferal')
             ->where('referred.sReferal', '!=', '')
+            ->where('referred.kyc_status', '=', 'approved')
             ->where('referred.created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 7 DAY)'))
+            ->where(function ($query) {
+                $query->whereNull('rc.min_transaction_amount')
+                      ->orWhere('rc.min_transaction_amount', '<=', 0)
+                      ->orWhereExists(function ($subQuery) {
+                          $subQuery->select(DB::raw(1))
+                                   ->from('transactions as t')
+                                   ->whereColumn('t.sId', 'referred.sId')
+                                   ->where('t.status', '=', 0) // 0 = success
+                                   ->whereNotIn('t.servicename', ['Referral Bonus', 'Wallet Credit', 'Refund', 'Debit'])
+                                   ->havingRaw('COALESCE(SUM(t.amount), 0) >= COALESCE(rc.min_transaction_amount, 0)');
+                      });
+            })
             ->groupBy('referred.sReferal')
             ->orderByDesc('referral_count')
             ->limit(10)
@@ -337,15 +352,30 @@ class UserController extends Controller
                 ];
             });
 
-        // Get monthly leaderboard (last 30 days) - using a subquery approach
+        // Get monthly leaderboard (last 30 days) - only count referrals that meet signup bonus criteria
         $monthlyLeaderboard = DB::table('subscribers as referred')
             ->select(
                 'referred.sReferal as username',
                 DB::raw('COUNT(*) as referral_count')
             )
+            ->join('subscribers as referrer', 'referrer.username', '=', 'referred.sReferal')
+            ->leftJoin('referral_commissions as rc', 'rc.role', '=', 'referrer.sType')
             ->whereNotNull('referred.sReferal')
             ->where('referred.sReferal', '!=', '')
+            ->where('referred.kyc_status', '=', 'approved')
             ->where('referred.created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 30 DAY)'))
+            ->where(function ($query) {
+                $query->whereNull('rc.min_transaction_amount')
+                      ->orWhere('rc.min_transaction_amount', '<=', 0)
+                      ->orWhereExists(function ($subQuery) {
+                          $subQuery->select(DB::raw(1))
+                                   ->from('transactions as t')
+                                   ->whereColumn('t.sId', 'referred.sId')
+                                   ->where('t.status', '=', 0) // 0 = success
+                                   ->whereNotIn('t.servicename', ['Referral Bonus', 'Wallet Credit', 'Refund', 'Debit'])
+                                   ->havingRaw('COALESCE(SUM(t.amount), 0) >= COALESCE(rc.min_transaction_amount, 0)');
+                      });
+            })
             ->groupBy('referred.sReferal')
             ->orderByDesc('referral_count')
             ->limit(10)

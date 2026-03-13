@@ -54,7 +54,25 @@ class ReferralBonusService
                 return null;
             }
 
-            // 3. Get the bonus percentage based on the REFERRER's role
+            // 3. Generate transaction reference early to check for duplicates
+            $txRef = $transactionRef ?: uniqid('REF-', true);
+            $refTxRef = 'REF-' . $txRef;
+
+            // 4. Check if this transaction has already been credited
+            $existingBonus = DB::table('transactions')
+                ->where('transref', $refTxRef)
+                ->where('servicename', 'Referral Bonus')
+                ->exists();
+
+            if ($existingBonus) {
+                Log::info('Referral bonus already credited for this transaction', [
+                    'transaction_ref' => $txRef,
+                    'user_id' => $user->sId,
+                ]);
+                return null;
+            }
+
+            // 5. Get the bonus percentage based on the REFERRER's role
             $referrerRole = (int) $referrer->sType;
             $bonusPercentage = ReferralCommission::getBonusForService($referrerRole, $serviceType);
 
@@ -62,60 +80,67 @@ class ReferralBonusService
                 return null;
             }
 
-            // 4. Calculate bonus amount
+            // 6. Calculate bonus amount
             $bonusAmount = round(($bonusPercentage / 100) * $transactionAmount, 2);
 
             if ($bonusAmount <= 0) {
                 return null;
             }
 
-            // 5. Credit the referrer's referral wallet (sRefWallet)
-            DB::table('subscribers')
-                ->where('sId', $referrer->sId)
-                ->increment('sRefWallet', $bonusAmount);
+            // 7. Credit the referrer's referral wallet and log transaction
+            return DB::transaction(function () use ($referrer, $refTxRef, $serviceType, $transactionAmount, $bonusPercentage, $bonusAmount, $user, $txRef) {
+                // Capture current balance from database
+                $currentBalance = (float) DB::table('subscribers')
+                    ->where('sId', $referrer->sId)
+                    ->value('sRefWallet');
+                
+                // Credit the referrer's referral wallet (sRefWallet)
+                DB::table('subscribers')
+                    ->where('sId', $referrer->sId)
+                    ->increment('sRefWallet', $bonusAmount);
 
-            // 6. Log the referral bonus transaction
-            $txRef = $transactionRef ?: generateTransactionRef();
-            DB::table('transactions')->insert([
-                'sId' => $referrer->sId,
-                'transref' => 'REF-' . $txRef,
-                'servicename' => 'Referral Bonus',
-                'servicedesc' => sprintf(
-                    'Referral bonus (%.1f%%) from %s %s transaction by %s',
-                    $bonusPercentage,
-                    $serviceType,
-                    number_format($transactionAmount, 2),
-                    $user->username ?? $user->sPhone
-                ),
-                'amount' => $bonusAmount,
-                'status' => 1,
-                'oldbal' => (float) $referrer->sRefWallet,
-                'newbal' => (float) $referrer->sRefWallet + $bonusAmount,
-                'profit' => 0,
-                'date' => now(),
-                'created_at' => now(),
-            ]);
+                // Log the referral bonus transaction
+                DB::table('transactions')->insert([
+                    'sId' => $referrer->sId,
+                    'transref' => $refTxRef,
+                    'servicename' => 'Referral Bonus',
+                    'servicedesc' => sprintf(
+                        'Referral bonus (%.1f%%) from %s %s transaction by %s',
+                        $bonusPercentage,
+                        $serviceType,
+                        number_format($transactionAmount, 2),
+                        $user->username ?? $user->sPhone
+                    ),
+                    'amount' => $bonusAmount,
+                    'status' => 0, // 0 = success
+                    'oldbal' => $currentBalance,
+                    'newbal' => $currentBalance + $bonusAmount,
+                    'profit' => 0,
+                    'date' => now(),
+                    'created_at' => now(),
+                ]);
 
-            Log::info('Referral bonus credited', [
-                'referrer_id' => $referrer->sId,
-                'referrer_username' => $referrerUsername,
-                'user_id' => $user->sId,
-                'service_type' => $serviceType,
-                'transaction_amount' => $transactionAmount,
-                'bonus_percentage' => $bonusPercentage,
-                'bonus_amount' => $bonusAmount,
-                'transaction_ref' => $txRef,
-            ]);
+                Log::info('Referral bonus credited', [
+                    'referrer_id' => $referrer->sId,
+                    'referrer_username' => $referrer->sReferal,
+                    'user_id' => $user->sId,
+                    'service_type' => $serviceType,
+                    'transaction_amount' => $transactionAmount,
+                    'bonus_percentage' => $bonusPercentage,
+                    'bonus_amount' => $bonusAmount,
+                    'transaction_ref' => $txRef,
+                ]);
 
-            // Also check if the signup bonus conditions are now met
-            static::checkAndCreditSignupBonus($user);
+                // Also check if the signup bonus conditions are now met
+                static::checkAndCreditSignupBonus($user);
 
-            return [
-                'referrer_id' => $referrer->sId,
-                'bonus_percentage' => $bonusPercentage,
-                'bonus_amount' => $bonusAmount,
-                'service_type' => $serviceType,
-            ];
+                return [
+                    'referrer_id' => $referrer->sId,
+                    'bonus_percentage' => $bonusPercentage,
+                    'bonus_amount' => $bonusAmount,
+                    'service_type' => $serviceType,
+                ];
+            });
 
         } catch (\Exception $e) {
             Log::error('Referral bonus credit failed', [
@@ -144,29 +169,24 @@ class ReferralBonusService
     public static function checkAndCreditSignupBonus(User $user): ?array
     {
         try {
-            // 1. Already credited?
-            if ((int) $user->referral_bonus_credited === 1) {
-                return null;
-            }
-
-            // 2. Has a referrer?
+            // 1. Has a referrer?
             $referrerUsername = $user->sReferal;
             if (empty($referrerUsername)) {
                 return null;
             }
 
-            // 3. KYC approved?
+            // 2. KYC approved?
             if ($user->kyc_status !== 'approved') {
                 return null;
             }
 
-            // 4. Find the referrer
+            // 3. Find the referrer
             $referrer = User::where('username', $referrerUsername)->first();
             if (! $referrer) {
                 return null;
             }
 
-            // 5. Get commission settings for referrer's role
+            // 4. Get commission settings for referrer's role
             $referrerRole = (int) $referrer->sType;
             $commission = ReferralCommission::forRole($referrerRole);
             if (! $commission) {
@@ -183,7 +203,7 @@ class ReferralBonusService
                 return null;
             }
 
-            // 6. Check accumulated successful transactions for the referred user
+            // 5. Check accumulated successful transactions for the referred user
             if ($minAmount > 0) {
                 $totalTransactions = (float) DB::table('transactions')
                     ->where('sId', $user->sId)
@@ -196,49 +216,63 @@ class ReferralBonusService
                 }
             }
 
-            // 7. Credit the referrer's referral wallet
-            DB::table('subscribers')
-                ->where('sId', $referrer->sId)
-                ->increment('sRefWallet', $signupBonus);
-
-            // 8. Mark as credited
-            DB::table('subscribers')
+            // 6. Atomic update to prevent race condition - mark as credited first
+            $affected = DB::table('subscribers')
                 ->where('sId', $user->sId)
+                ->where('referral_bonus_credited', 0)
                 ->update(['referral_bonus_credited' => 1]);
 
-            // 9. Log the transaction
-            $txRef = 'SIGNUP-REF-' . $user->sId . '-' . time();
-            DB::table('transactions')->insert([
-                'sId' => $referrer->sId,
-                'transref' => $txRef,
-                'servicename' => 'Referral Signup Bonus',
-                'servicedesc' => sprintf(
-                    'Referral signup bonus of N%s for referring %s (KYC approved + min transactions met)',
-                    number_format($signupBonus, 2),
-                    $user->username ?? $user->sEmail
-                ),
-                'amount' => $signupBonus,
-                'status' => 1,
-                'oldbal' => (float) $referrer->sRefWallet,
-                'newbal' => (float) $referrer->sRefWallet + $signupBonus,
-                'profit' => 0,
-                'date' => now(),
-                'created_at' => now(),
-            ]);
+            // If no rows were affected, the bonus was already credited
+            if ($affected === 0) {
+                return null;
+            }
 
-            Log::info('Referral signup bonus credited', [
-                'referrer_id' => $referrer->sId,
-                'referrer_username' => $referrerUsername,
-                'referred_user_id' => $user->sId,
-                'bonus_amount' => $signupBonus,
-                'min_transaction_amount' => $minAmount,
-            ]);
+            // 7. Credit the referrer's referral wallet and log transaction
+            return DB::transaction(function () use ($referrer, $user, $signupBonus, $referrerUsername, $minAmount) {
+                // Capture current balance from database
+                $currentBalance = (float) DB::table('subscribers')
+                    ->where('sId', $referrer->sId)
+                    ->value('sRefWallet');
+                
+                // Credit the referrer's referral wallet
+                DB::table('subscribers')
+                    ->where('sId', $referrer->sId)
+                    ->increment('sRefWallet', $signupBonus);
 
-            return [
-                'referrer_id' => $referrer->sId,
-                'bonus_amount' => $signupBonus,
-                'type' => 'signup_bonus',
-            ];
+                // Log the transaction
+                $txRef = 'SIGNUP-REF-' . $user->sId . '-' . uniqid();
+                DB::table('transactions')->insert([
+                    'sId' => $referrer->sId,
+                    'transref' => $txRef,
+                    'servicename' => 'Referral Signup Bonus',
+                    'servicedesc' => sprintf(
+                        'Referral signup bonus of N%s for referring %s (KYC approved + min transactions met)',
+                        number_format($signupBonus, 2),
+                        $user->username ?? $user->sEmail
+                    ),
+                    'amount' => $signupBonus,
+                    'status' => 0, // 0 = success
+                    'oldbal' => $currentBalance,
+                    'newbal' => $currentBalance + $signupBonus,
+                    'profit' => 0,
+                    'date' => now(),
+                    'created_at' => now(),
+                ]);
+
+                Log::info('Referral signup bonus credited', [
+                    'referrer_id' => $referrer->sId,
+                    'referrer_username' => $referrerUsername,
+                    'referred_user_id' => $user->sId,
+                    'bonus_amount' => $signupBonus,
+                    'min_transaction_amount' => $minAmount,
+                ]);
+
+                return [
+                    'referrer_id' => $referrer->sId,
+                    'bonus_amount' => $signupBonus,
+                    'type' => 'signup_bonus',
+                ];
+            });
 
         } catch (\Exception $e) {
             Log::error('Referral signup bonus check failed', [
