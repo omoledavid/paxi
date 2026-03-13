@@ -29,7 +29,7 @@
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{{ config('app.url') }}/admin/feedback/{{ $feedback->id }}" 
+            <a href="{{ config('app.admin_url') }}/ceegatpaxiadmin/dashboard/feedback-details?id{{ $feedback->id }}" 
                style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
                 View Feedback in Admin Panel
             </a>

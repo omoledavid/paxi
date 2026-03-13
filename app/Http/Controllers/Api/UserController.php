@@ -321,8 +321,8 @@ class UserController extends Controller
                     ->first();
                 
                 $email = $referrer?->sEmail ?? $entry->username;
-                // Mask email for positions 4-10 (index 3-9)
-                if ($index >= 3 && $email && str_contains($email, '@')) {
+                // Mask email for positions 4-10 (index 3-9): show first 4 chars + ****
+                if ($email && str_contains($email, '@')) {
                     $parts = explode('@', $email);
                     $email = substr($parts[0], 0, 4) . '****@' . $parts[1];
                 }
@@ -357,8 +357,8 @@ class UserController extends Controller
                     ->first();
                 
                 $email = $referrer?->sEmail ?? $entry->username;
-                // Mask email for positions 4-10 (index 3-9)
-                if ($index >= 3 && $email && str_contains($email, '@')) {
+                // Mask email for positions 4-10 (index 3-9): show first 4 chars + ****
+                if ($email && str_contains($email, '@')) {
                     $parts = explode('@', $email);
                     $email = substr($parts[0], 0, 4) . '****@' . $parts[1];
                 }
