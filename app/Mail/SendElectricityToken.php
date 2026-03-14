@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class SendElectricityToken extends Mailable implements ShouldQueue
+class SendElectricityToken extends Mailable
 {
     use Queueable, SerializesModels;
 

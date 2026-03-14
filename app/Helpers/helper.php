@@ -30,7 +30,9 @@ function sendVerificationCode($code, $email, $subject = 'Account Verification')
 {
     try {
         Mail::to($email)->send(new SendVerificationCode($code, $subject));
+        \Log::info('mail sent');
     } catch (\Exception $exception) {
+        \Log::error($exception->getMessage());
         return false;
     }
 }
