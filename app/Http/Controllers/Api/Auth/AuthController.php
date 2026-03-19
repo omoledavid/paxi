@@ -217,6 +217,7 @@ class AuthController extends Controller
         ]);
 
         if ($accountCreationResponse->failed()) {
+            \Log::error('Failed to create virtual bank account: '.$accountCreationResponse->body());
             throw new \Exception('Failed to create virtual bank account.');
         }
 
