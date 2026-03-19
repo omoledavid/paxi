@@ -235,7 +235,11 @@ class AuthController extends Controller
                 $user->sBankName = $wemaBankName;
                 $user->sBankNo = $wemaAccountNumber;
                 $user->save();
+
+                return true;
             }
         }
+
+        return false;
     }
 }
