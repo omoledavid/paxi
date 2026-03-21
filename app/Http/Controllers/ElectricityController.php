@@ -425,7 +425,7 @@ class ElectricityController extends Controller
             // Check if token exists in response and send email
             if (isset($response['metertoken']) || ($validatedData['meter_type'] === 'prepaid' && isset($response['metertoken']))) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
+                    \Illuminate\Support\Facades\Mail::to($user->sEmail)->send(new \App\Mail\SendElectricityToken(
                         $response['metertoken'],
                         $amount,
                         $validatedData['meter_no'],
@@ -509,7 +509,7 @@ class ElectricityController extends Controller
             // But Paystack might return token differently.
             if (isset($response['data']['token'])) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
+                    \Illuminate\Support\Facades\Mail::to($user->sEmail)->send(new \App\Mail\SendElectricityToken(
                         $response['data']['token'],
                         $amount,
                         $validatedData['meter_no'],
@@ -584,7 +584,7 @@ class ElectricityController extends Controller
             $token = $response['purchased_code'] ?? $response['mainToken'] ?? $response['token'] ?? null;
             if ($token) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($user)->send(new \App\Mail\SendElectricityToken(
+                    \Illuminate\Support\Facades\Mail::to($user->sEmail)->send(new \App\Mail\SendElectricityToken(
                         $token,
                         $amount,
                         $validatedData['meter_no'],
@@ -725,7 +725,7 @@ class ElectricityController extends Controller
             $token = $response['token'] ?? null;
             if ($token) {
                 try {
-                    Mail::to($user)->send(new SendElectricityToken(
+                    Mail::to($user->sEmail)->send(new SendElectricityToken(
                         $token,
                         $amount,
                         $validatedData['meter_no'],
