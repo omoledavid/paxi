@@ -18,6 +18,10 @@ use App\Services\Paystack\BettingService as PaystackBettingService;
 use App\Services\Paystack\PaystackTransactionService;
 use App\Services\VtuAfrica\BettingService as VtuAfricaBettingService;
 use App\Services\VtuAfrica\VtuAfricaTransactionService;
+use App\Services\Palmpay\BettingService as PalmpayBettingService;
+use App\Services\Palmpay\PalmpayTransactionService;
+use App\Enums\PalmpayServiceType;
+use App\Models\PalmpayTransaction;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -40,13 +44,19 @@ class BettingController extends Controller
 
     protected VtuAfricaTransactionService $vtuAfricaTransactionService;
 
+    protected PalmpayBettingService $palmpayBettingService;
+
+    protected PalmpayTransactionService $palmpayTransactionService;
+
     public function __construct(
         BettingService $bettingService,
         NelloBytesTransactionService $nelloBytesTransactionService,
         PaystackBettingService $paystackBettingService,
         PaystackTransactionService $paystackTransactionService,
         VtuAfricaBettingService $vtuAfricaBettingService,
-        VtuAfricaTransactionService $vtuAfricaTransactionService
+        VtuAfricaTransactionService $vtuAfricaTransactionService,
+        PalmpayBettingService $palmpayBettingService,
+        PalmpayTransactionService $palmpayTransactionService
     ) {
         $this->bettingService = $bettingService;
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
@@ -54,6 +64,8 @@ class BettingController extends Controller
         $this->paystackTransactionService = $paystackTransactionService;
         $this->vtuAfricaBettingService = $vtuAfricaBettingService;
         $this->vtuAfricaTransactionService = $vtuAfricaTransactionService;
+        $this->palmpayBettingService = $palmpayBettingService;
+        $this->palmpayTransactionService = $palmpayTransactionService;
     }
 
     /**
@@ -62,6 +74,19 @@ class BettingController extends Controller
     public function getCompanies(): JsonResponse
     {
         try {
+            if ($this->isPalmpayEnabled()) {
+                $companies = [
+                    ['PRODUCT_CODE' => 'bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                    ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                    ['PRODUCT_CODE' => 'betking', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                    ['PRODUCT_CODE' => '1xbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ];
+
+                return $this->ok('Betting companies retrieved successfully', [
+                    'BETTING_COMPANY' => $companies
+                ]);
+            }
+
             $companies = [
                 ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'naijabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
@@ -111,7 +136,16 @@ class BettingController extends Controller
         try {
             $validated = $request->validated();
 
-            // Priority: VTU Africa -> Paystack -> NelloBytes
+            // Priority: Palmpay -> VTU Africa -> Paystack -> NelloBytes
+            if ($this->isPalmpayEnabled()) {
+                $result = $this->palmpayBettingService->verifyCustomer(
+                    $validated['company_code'],
+                    $validated['customer_id']
+                );
+
+                return $this->ok('Customer verified successfully', $result);
+            }
+
             if ($this->isVtuAfricaEnabled()) {
                 $result = $this->vtuAfricaBettingService->verifyCustomer(
                     $validated['company_code'],
@@ -155,7 +189,7 @@ class BettingController extends Controller
     public function fund(FundBettingRequest $request): JsonResponse
     {
         // Check if any betting service is enabled
-        if (!$this->isVtuAfricaEnabled() && !$this->isPaystackEnabled() && !$this->isNellobytesEnabled()) {
+        if (!$this->isPalmpayEnabled() && !$this->isVtuAfricaEnabled() && !$this->isPaystackEnabled() && !$this->isNellobytesEnabled()) {
             return $this->error('Betting Service currently disabled');
         }
 
@@ -167,7 +201,11 @@ class BettingController extends Controller
             return $this->error('Incorrect PIN', 400);
         }
 
-        // Priority: VTU Africa -> Paystack -> NelloBytes
+        // Priority: Palmpay -> VTU Africa -> Paystack -> NelloBytes
+        if ($this->isPalmpayEnabled()) {
+            return $this->fundPalmpay($validated, $user);
+        }
+
         if ($this->isVtuAfricaEnabled()) {
             return $this->fundVtuAfrica($validated, $user);
         }
@@ -381,6 +419,102 @@ class BettingController extends Controller
         }
 
         return $enabled;
+    }
+
+    private function isPalmpayEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'palmpayStatus') === 'On' &&
+                getConfigValue($config, 'palmpayBettingStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+
+    private function fundPalmpay(array $validated, $user): JsonResponse
+    {
+        $transactionRef = generateTransactionRef();
+
+        // Remove sensitive data from request payload before storing
+        $requestPayload = $validated;
+        unset($requestPayload['pin']);
+
+        // Create PalmPay transaction
+        $transaction = PalmpayTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => PalmpayServiceType::BETTING,
+            'transaction_ref' => $transactionRef,
+            'amount' => $validated['amount'],
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $requestPayload,
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $charge = 50;
+            $totalAmount = (float) $validated['amount'] + $charge;
+
+            $debit = debitWallet(
+                $user,
+                $totalAmount,
+                'Betting Funding',
+                sprintf(
+                    'Betting funding for %s (%s)',
+                    $validated['customer_id'],
+                    $validated['company_code']
+                ),
+                0,
+                $charge,
+                $transactionRef,
+                false
+            );
+
+            $result = $this->palmpayBettingService->fund(
+                $validated['company_code'],
+                $validated['customer_id'],
+                (float) $validated['amount'],
+                $transactionRef,
+                $user->sPhone ?? null
+            );
+
+            $this->palmpayTransactionService->handleProviderResponse(
+                $result,
+                $transaction,
+                $user,
+                (float) $validated['amount']
+            );
+
+            DB::commit();
+
+            return $this->ok('Betting account funded successfully', [
+                'transaction_ref' => $transactionRef,
+                'palmpay_ref' => $result['order_id'] ?? null,
+                'balance' => $debit['new_balance'],
+                'data' => $result,
+            ]);
+
+        } catch (\App\Exceptions\PalmpayTransactionFailedException $e) {
+            DB::commit();
+            return $this->error($e->getMessage());
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $transaction->update([
+                'status' => TransactionStatus::FAILED,
+                'error_message' => $e->getMessage(),
+                'response_payload' => ['error' => $e->getMessage()],
+            ]);
+            Log::error('Failed to fund betting account (PalmPay)', [
+                'user_id' => $user->sId,
+                'transaction_ref' => $transactionRef,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->error($e->getMessage(), 500);
+        }
     }
 
     private function fundVtuAfrica(array $validated, $user): JsonResponse

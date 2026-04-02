@@ -4,15 +4,15 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Mail\AccountLocked;
-use App\Models\ApiConfig;
 use App\Models\User;
+use App\Models\UserDevice;
 use App\Models\UserLogin;
 use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -75,27 +75,7 @@ class AuthController extends Controller
 
         sendVerificationCode($verCode, $user->sEmail);
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
-        // Generate User Login Token
-        $randomToken = substr(str_shuffle('ABCDEFGHIJklmnopqrstvwxyz'), 0, 10);
-        $userLoginToken = time().$randomToken.mt_rand(100, 1000);
 
-        //        $userLogin = new UserLogin();
-        //        $userLogin->user = $user->sId;
-        //        $userLogin->token = $userLoginToken;
-        //        $userLogin->save();
-
-        // create virtual account
-        $apiConfig = ApiConfig::all();
-        $monnifySecret = getConfigValue($apiConfig, 'monifySecrete');
-        $monnifyApi = getConfigValue($apiConfig, 'monifyApi');
-        $monifyStatus = getConfigValue($apiConfig, 'monifyStatus');
-        $monnifyContract = getConfigValue($apiConfig, 'monifyContract');
-
-        if ($monifyStatus == 'On') {
-            $this->createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract);
-        }
-
-        //        $token = $user->createToken('auth_token',['*'], now()->addDay())->plainTextToken;
         return $this->ok('User registered successfully. Please verify your email address.', [
             'user' => $user,
             'token' => $token,
@@ -158,6 +138,34 @@ class AuthController extends Controller
 
         $user->unlockAccount();
 
+        // Device verification check
+        $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
+
+        $knownDevice = UserDevice::where('user_id', $user->sId)
+            ->where('device_hash', $deviceHash)
+            ->first();
+
+        if ($knownDevice) {
+            $knownDevice->update(['last_seen_at' => now()]);
+        } else {
+            $otp             = verificationCode(6);
+            $verificationToken = Str::random(40);
+
+            $user->update([
+                'device_otp'                => $otp,
+                'device_otp_expires_at'     => now()->addMinutes(10),
+                'device_verification_token' => $verificationToken,
+            ]);
+
+            sendVerificationCode($otp, $user->sEmail, 'New Device Login Verification');
+
+            return $this->ok('Device verification required.', [
+                'requires_device_verification' => true,
+                'verification_token'           => $verificationToken,
+                'email'                        => $user->sEmail,
+            ]);
+        }
+
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
 
         return $this->ok(
@@ -172,74 +180,94 @@ class AuthController extends Controller
         );
     }
 
+    public function verifyDevice(Request $request): JsonResponse
+    {
+        $request->validate([
+            'verification_token' => ['required', 'string'],
+            'otp_code'           => ['required', 'digits:6'],
+        ]);
+
+        $user = User::where('device_verification_token', $request->verification_token)->first();
+
+        if (! $user) {
+            return $this->error('Invalid or expired verification session.', 401);
+        }
+
+        if (! $user->device_otp_expires_at || now()->isAfter($user->device_otp_expires_at)) {
+            return $this->error('The OTP has expired. Please request a new one.', 422);
+        }
+
+        if ($user->device_otp !== $request->otp_code) {
+            return $this->error('Invalid OTP. Please try again.', 422);
+        }
+
+        // Register the device so future logins skip OTP
+        $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
+
+        UserDevice::updateOrCreate(
+            ['user_id' => $user->sId, 'device_hash' => $deviceHash],
+            [
+                'user_agent'   => $request->userAgent(),
+                'ip_address'   => $request->ip(),
+                'last_seen_at' => now(),
+            ]
+        );
+
+        // Clear pending OTP data
+        $user->update([
+            'device_otp'                => null,
+            'device_otp_expires_at'     => null,
+            'device_verification_token' => null,
+        ]);
+
+        $token = $user->createToken('auth_token', ['*'])->plainTextToken;
+
+        return $this->ok('Authenticated', [
+            'token' => $token,
+            'user'  => [
+                'name'  => $user->sFname.' '.$user->sLname,
+                'email' => $user->sEmail,
+            ],
+        ]);
+    }
+
+    public function resendDeviceOtp(Request $request): JsonResponse
+    {
+        $request->validate([
+            'verification_token' => ['required', 'string'],
+        ]);
+
+        $user = User::where('device_verification_token', $request->verification_token)->first();
+
+        if (! $user) {
+            return $this->error('Invalid or expired verification session.', 401);
+        }
+
+        // Prevent abuse: block resend if the current OTP was issued less than 2 minutes ago
+        if ($user->device_otp_expires_at && $user->device_otp_expires_at->isAfter(now()->addMinutes(8))) {
+            return $this->error('Please wait before requesting a new OTP.', 429);
+        }
+
+        $otp               = verificationCode(6);
+        $verificationToken = Str::random(40);
+
+        $user->update([
+            'device_otp'                => $otp,
+            'device_otp_expires_at'     => now()->addMinutes(10),
+            'device_verification_token' => $verificationToken,
+        ]);
+
+        sendVerificationCode($otp, $user->sEmail, 'New Device Login Verification');
+
+        return $this->ok('A new OTP has been sent to your email.', [
+            'verification_token' => $verificationToken,
+        ]);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
 
         return $this->ok('Logged out');
-    }
-
-    public function createVirtualBankAccount($user, $monnifyApi, $monnifySecret, $monnifyContract)
-    {
-        $fullname = $user->sFname.' '.$user->sLname;
-        $accessKey = "$monnifyApi:$monnifySecret";
-        $apiKey = base64_encode($accessKey);
-
-        // Step 1: Get Authorization Data
-        $authUrl = 'https://api.monnify.com/api/v1/auth/login';
-        $accountCreationUrl = 'https://api.monnify.com/api/v2/bank-transfer/reserved-accounts';
-
-        $authResponse = Http::withHeaders([
-            'Authorization' => "Basic {$apiKey}",
-        ])->post($authUrl);
-
-        if ($authResponse->failed()) {
-            throw new \Exception('Failed to authenticate with Monnify.');
-        }
-
-        $accessToken = $authResponse->json('responseBody.accessToken');
-        $ref = uniqid().rand(1000, 9000);
-
-        // Step 2: Request Account Creation
-        $accountCreationResponse = Http::withHeaders([
-            'Authorization' => "Bearer {$accessToken}",
-            'Content-Type' => 'application/json',
-        ])->post($accountCreationUrl, [
-            'accountReference' => $ref,
-            'accountName' => $fullname,
-            'currencyCode' => 'NGN',
-            'contractCode' => $monnifyContract,
-            'customerEmail' => $user->sEmail,
-            'bvn' => env('DEFAULT_BVN', ''),
-            'customerName' => $fullname,
-            'getAllAvailableBanks' => false,
-            'preferredBanks' => ['035'],
-        ]);
-
-        if ($accountCreationResponse->failed()) {
-            \Log::error('Failed to create virtual bank account: '.$accountCreationResponse->body());
-            throw new \Exception('Failed to create virtual bank account.');
-        }
-
-        $accountData = $accountCreationResponse->json();
-
-        // Step 3: Check and Save Account Details
-        if ($accountData['requestSuccessful'] === true) {
-            $accountName = $accountData['responseBody']['accountName'];
-            $accounts = $accountData['responseBody']['accounts'];
-
-            if (! empty($accounts) && $accounts[0]['bankCode'] === '035') {
-                $wemaAccountNumber = $accounts[0]['accountNumber'];
-                $wemaBankName = $accounts[0]['bankName'];
-
-                $user->sBankName = $wemaBankName;
-                $user->sBankNo = $wemaAccountNumber;
-                $user->save();
-
-                return true;
-            }
-        }
-
-        return false;
     }
 }

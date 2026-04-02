@@ -36,10 +36,13 @@ class UserResource extends JsonResource
                 'referral_link' => env('FRONTEND_REF_URL').'/auth/sign-up?referral='.$this->username,
                 'nin_status' => $this->nin_verified,
                 'kyc_status' => $this->kyc_status,
+                'epin_business_name' => $this->epin_business_name,
+                'epin_customer_care' => $this->epin_customer_care,
                 'banks' => [
                     [
-                        'name' => 'Wema Bank',
-                        'account_no' => $this->sBankNo,
+                        'name'         => $this->sBankName ?? 'Wema Bank',
+                        'account_no'   => $this->sBankNo,
+                        'account_name' => $this->sBankAccountName,
                     ],
                     [
                         'name' => 'Rolex Bank',

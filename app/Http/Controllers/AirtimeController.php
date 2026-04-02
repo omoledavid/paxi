@@ -17,6 +17,9 @@ use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Vtpass\AirtimeService as VtpassAirtimeService;
 use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\AirtimeService as VtuAfricaAirtimeService;
+use App\Services\Palmpay\AirtimeService as PalmpayAirtimeService;
+use App\Enums\PalmpayServiceType;
+use App\Models\PalmpayTransaction;
 use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use DB;
@@ -35,9 +38,11 @@ class AirtimeController extends Controller
         protected AirtimeService $airtimeService,
         protected VtpassAirtimeService $vtpassAirtimeService,
         protected VtuAfricaAirtimeService $vtuAfricaAirtimeService,
+        protected PalmpayAirtimeService $palmpayAirtimeService,
         NelloBytesTransactionService $nelloBytesTransactionService,
         VtpassTransactionService $vtpassTransactionService,
-        protected \App\Services\VtuAfrica\VtuAfricaTransactionService $vtuAfricaTransactionService
+        protected \App\Services\VtuAfrica\VtuAfricaTransactionService $vtuAfricaTransactionService,
+        protected \App\Services\Palmpay\PalmpayTransactionService $palmpayTransactionService
     ) {
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
         $this->vtpassTransactionService = $vtpassTransactionService;
@@ -72,7 +77,7 @@ class AirtimeController extends Controller
         ]);
 
         // Check transaction PIN first (for non-Nellobytes flow)
-        if (!$this->isNellobytesEnabled() && !$this->isVtuAfricaEnabled()) {
+        if (!$this->isNellobytesEnabled() && !$this->isVtuAfricaEnabled() && !$this->isPalmpayEnabled()) {
             if (!hash_equals((string) $user->sPin, (string) $validated['pin'])) {
                 throw ValidationException::withMessages([
                     'pin' => 'The provided PIN is incorrect.',
@@ -82,7 +87,11 @@ class AirtimeController extends Controller
 
         $transactionRef = generateTransactionRef();
 
-        // Priority: VTU Africa -> Nellobytes -> VTpass -> Legacy
+        // Priority: Palmpay -> VTU Africa -> Nellobytes -> VTpass -> Legacy
+        if ($this->isPalmpayEnabled()) {
+            return $this->purchasePalmpayAirtime($validated, $user, $transactionRef);
+        }
+
         if ($this->isVtuAfricaEnabled()) {
             return $this->purchaseVtuAfricaAirtime($validated, $user, $transactionRef);
         }
@@ -296,6 +305,104 @@ class AirtimeController extends Controller
         }
 
         return $enabled;
+    }
+
+    private function isPalmpayEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'palmpayStatus') === 'On' &&
+                getConfigValue($config, 'palmpayAirtimeStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+
+    /**
+     * Purchase airtime via PalmPay.
+     */
+    private function purchasePalmpayAirtime(array $validated, $user, string $transactionRef)
+    {
+        // Map network ID to PalmPay network code
+        $network = PalmpayAirtimeService::mapNetworkCode($validated['network']);
+
+        if (!$network) {
+            return $this->error('Unsupported network for PalmPay');
+        }
+
+        // Calculate discount if applicable
+        $airtimeDiscount = Airtime::where('aNetwork', $validated['network'])->where('aType', 'VTU')->first();
+        $discountRate = match ((int) $user->sType) {
+            1 => $airtimeDiscount?->aUserDiscount ?? 100,
+            2 => $airtimeDiscount?->aAgentDiscount ?? 100,
+            3 => $airtimeDiscount?->aVendorDiscount ?? 100,
+            default => 100
+        };
+        $payableAmount = ($validated['amount'] / 100) * $discountRate;
+
+        // Remove sensitive data from request payload
+        $requestPayload = $validated;
+        unset($requestPayload['pin']);
+
+        DB::beginTransaction();
+
+        // Create transaction record
+        $transaction = PalmpayTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => PalmpayServiceType::AIRTIME,
+            'transaction_ref' => $transactionRef,
+            'amount' => $validated['amount'],
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $requestPayload,
+        ]);
+
+        try {
+            // Debit wallet
+            debitWallet(
+                user: $user,
+                amount: $payableAmount,
+                serviceName: 'Airtime Purchase',
+                serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']} at NGN{$payableAmount}",
+                transactionRef: $transactionRef,
+                wrapInTransaction: false,
+            );
+
+            $result = $this->palmpayAirtimeService->purchaseAirtime(
+                network: $network,
+                phoneNumber: $validated['phone_number'],
+                amount: $validated['amount'],
+                transactionRef: $transactionRef
+            );
+
+            // Use handleProviderResponse for automatic reversal on failure
+            $this->palmpayTransactionService->handleProviderResponse(
+                $result,
+                $transaction,
+                $user,
+                $payableAmount
+            );
+
+            DB::commit();
+
+            ReferralBonusService::credit($user, $payableAmount, ReferralBonusService::AIRTIME, $transactionRef);
+
+            return $this->ok('Airtime purchased successfully', [
+                'reference' => $transactionRef,
+                'palmpay_ref' => $result['order_id'] ?? null,
+                'data' => $result,
+            ]);
+
+        } catch (\App\Exceptions\PalmpayTransactionFailedException $e) {
+            // Commit the transaction to save the "FAILED" status and the wallet refund
+            DB::commit();
+            return $this->error($e->getMessage());
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error($e->getMessage());
+        }
     }
 
     /**

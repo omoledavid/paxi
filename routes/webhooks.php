@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Webhook\NelloBytesController;
+use App\Http\Controllers\Webhook\PalmpayVirtualAccountController;
+use App\Http\Controllers\Webhook\PaystackWebhookController;
 use App\Http\Controllers\Webhook\VtpassController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,3 +21,9 @@ Route::match(['get', 'post'], 'nellobytes', [NelloBytesController::class, 'handl
 
 Route::match(['get', 'post'], 'vtpass', [VtpassController::class, 'handleWebhook'])
     ->name('webhooks.vtpass');
+
+Route::post('palmpay/virtual-account', [PalmpayVirtualAccountController::class, 'handleWebhook'])
+    ->name('webhooks.palmpay.virtual-account');
+
+Route::post('paystack', [PaystackWebhookController::class, 'handleWebhook'])
+    ->name('webhooks.paystack');

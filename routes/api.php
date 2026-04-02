@@ -5,11 +5,13 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthorizationController;
 use App\Http\Controllers\Api\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\VirtualAccountController;
 use App\Http\Controllers\CableTvController;
 use App\Http\Controllers\DataController;
 use App\Http\Controllers\ElectricityController;
 use App\Http\Controllers\ExamCardController;
 use App\Http\Controllers\GeneralController;
+use App\Http\Controllers\PaystackCheckoutController;
 use App\Http\Controllers\KycController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\FeedbackController;
@@ -24,6 +26,8 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/register', 'register');
     Route::post('/login', 'login');
 })->middleware(['throttle:6,1']);
+Route::post('login/verify-device', [AuthController::class, 'verifyDevice'])->middleware('throttle:10,5');
+Route::post('login/resend-device-otp', [AuthController::class, 'resendDeviceOtp'])->middleware('throttle:3,10');
 Route::controller(ForgotPasswordController::class)->group(function () {
     Route::post('password/email', 'sendResetCodeEmail')->middleware(['throttle.verification:password', 'throttle:3,60']);
     Route::post('password/verify-code', 'verifyCode')->middleware('throttle:10,120');
@@ -54,6 +58,13 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     // Change password
     Route::post('changepass', UserController::class . '@changePassword');
     Route::post('changepin', UserController::class . '@changePin');
+
+    // Virtual Account
+    Route::post('create-virtual-account', [VirtualAccountController::class, 'create']);
+
+    // Paystack Instant Funding (Checkout)
+    Route::post('paystack/checkout/initialize', [PaystackCheckoutController::class, 'initialize']);
+    Route::get('paystack/checkout/verify/{reference}', [PaystackCheckoutController::class, 'verify']);
 
     // Data
     Route::controller(DataController::class)->group(function () {

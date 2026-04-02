@@ -11,4 +11,5 @@ enum PaystackServiceType: string
     case DATA = 'data';
     case ELECTRICITY = 'electricity';
     case CABLETV = 'cabletv';
+    case WALLET_TOPUP = 'wallet_topup';
 }

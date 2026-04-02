@@ -17,6 +17,9 @@ use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Vtpass\DataService as VtpassDataService;
 use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\DataService as VtuAfricaDataService;
+use App\Services\Palmpay\DataService as PalmpayDataService;
+use App\Enums\PalmpayServiceType;
+use App\Models\PalmpayTransaction;
 use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use DB;
@@ -38,7 +41,9 @@ class DataController extends Controller
         VtpassTransactionService $vtpassTransactionService,
         protected VtpassDataService $vtpassDataService,
         protected VtuAfricaDataService $vtuAfricaDataService,
-        protected \App\Services\VtuAfrica\VtuAfricaTransactionService $vtuAfricaTransactionService
+        protected \App\Services\VtuAfrica\VtuAfricaTransactionService $vtuAfricaTransactionService,
+        protected PalmpayDataService $palmpayDataService,
+        protected \App\Services\Palmpay\PalmpayTransactionService $palmpayTransactionService
     ) {
         $this->dataService = $dataService;
         $this->nelloBytesTransactionService = $nelloBytesTransactionService;
@@ -49,8 +54,14 @@ class DataController extends Controller
     {
         $data = Network::with('dataPlans')->get();
 
-        // Priority: VTU Africa -> NelloBytes -> VTpass -> all
-        if ($this->isVtuAfricaEnabled()) {
+        // Priority: Palmpay -> VTU Africa -> NelloBytes -> VTpass -> all
+        if ($this->isPalmpayEnabled()) {
+            $data = Network::with([
+                'dataPlans' => function ($query) {
+                    $query->where('service_type', 'palmpay');
+                },
+            ])->get();
+        } elseif ($this->isVtuAfricaEnabled()) {
             $data = Network::with([
                 'dataPlans' => function ($query) {
                     $query->where('service_type', 'vtuafrica');
@@ -100,7 +111,11 @@ class DataController extends Controller
         // ref code
         $transRef = generateTransactionRef();
 
-        // Priority: VTU Africa -> NelloBytes -> VTpass -> Legacy
+        // Priority: Palmpay -> VTU Africa -> NelloBytes -> VTpass -> Legacy
+        if ($this->isPalmpayEnabled()) {
+            return $this->purchasePalmpayData($validatedData, $user, $dataCode, $transRef);
+        }
+
         if ($this->isVtuAfricaEnabled()) {
             return $this->purchaseVtuAfricaData($validatedData, $user, $dataCode, $transRef);
         }
@@ -346,6 +361,98 @@ class DataController extends Controller
         }
 
         return $enabled;
+    }
+
+    private function isPalmpayEnabled(): bool
+    {
+        static $enabled = null;
+
+        if ($enabled === null) {
+            $config = ApiConfig::all();
+
+            $enabled = getConfigValue($config, 'palmpayStatus') === 'On' &&
+                getConfigValue($config, 'palmpayDataStatus') === 'On';
+        }
+
+        return $enabled;
+    }
+
+    /**
+     * Purchase data via PalmPay.
+     */
+    private function purchasePalmpayData(array $validated, $user, DataPlan $dataCode, string $transRef): JsonResponse
+    {
+        $amount = $dataCode->userprice;
+
+        // Map network ID and data type to PalmPay service code
+        $service = PalmpayDataService::mapServiceCode(
+            $validated['network_id'],
+            $validated['data_type'] ?? 'SME'
+        );
+
+        if (!$service) {
+            return $this->error('Unsupported network for PalmPay');
+        }
+
+        // Remove sensitive data from request payload
+        $requestPayload = $validated;
+        unset($requestPayload['pin']);
+
+        DB::beginTransaction();
+
+        $transaction = PalmpayTransaction::create([
+            'user_id' => $user->sId,
+            'service_type' => PalmpayServiceType::DATA,
+            'transaction_ref' => $transRef,
+            'amount' => $amount,
+            'status' => TransactionStatus::PENDING,
+            'request_payload' => $requestPayload,
+        ]);
+
+        try {
+            debitWallet(
+                user: $user,
+                amount: $amount,
+                serviceName: 'Data Purchase',
+                serviceDesc: "Data purchase for {$validated['phone_number']}",
+                transactionRef: $transRef,
+                wrapInTransaction: false
+            );
+
+            $result = $this->palmpayDataService->purchaseData(
+                service: $service,
+                phoneNumber: $validated['phone_number'],
+                dataPlan: $dataCode->planid,
+                transactionRef: $transRef,
+                amount: $amount
+            );
+
+            // Use handleProviderResponse for automatic reversal on failure
+            $this->palmpayTransactionService->handleProviderResponse(
+                $result,
+                $transaction,
+                $user,
+                $amount
+            );
+
+            DB::commit();
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::DATA, $transRef);
+
+            return $this->ok('Data purchase successful', [
+                'reference' => $transRef,
+                'palmpay_ref' => $result['order_id'] ?? null,
+                'data' => $result,
+            ]);
+
+        } catch (\App\Exceptions\PalmpayTransactionFailedException $e) {
+            DB::commit();
+            return $this->error($e->getMessage());
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return $this->error($e->getMessage());
+        }
     }
 
     /**

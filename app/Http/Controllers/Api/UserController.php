@@ -56,6 +56,8 @@ class UserController extends Controller
             'lname' => 'nullable|string',
             'phone' => ['nullable', new NigerianPhone],
             'state' => 'nullable|string',
+            'epin_business_name' => 'nullable|string|max:100',
+            'epin_customer_care' => 'nullable|string|max:20',
         ]);
 
         // Filter out null values before updating
@@ -64,6 +66,8 @@ class UserController extends Controller
             'sLname' => $validatedData['lname'] ?? $user->sLname,
             'sPhone' => isset($validatedData['phone']) ? NigerianPhone::normalize($validatedData['phone']) : $user->sPhone,
             'sState' => $validatedData['state'] ?? $user->sState,
+            'epin_business_name' => array_key_exists('epin_business_name', $validatedData) ? $validatedData['epin_business_name'] : $user->epin_business_name,
+            'epin_customer_care' => array_key_exists('epin_customer_care', $validatedData) ? $validatedData['epin_customer_care'] : $user->epin_customer_care,
         ], fn ($value) => ! is_null($value)); // This prevents null values from overriding existing data
 
         $user->update($updateData);
