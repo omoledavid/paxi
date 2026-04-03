@@ -12,8 +12,14 @@ use Illuminate\Support\Facades\Log;
 
 class PalmpayVirtualAccountController extends Controller
 {
-    // PalmPay orderStatus value for a successful cash-in
-    private const ORDER_STATUS_SUCCESS = 2;
+    /**
+     * PalmPay VA cash-in orderStatus codes:
+     *   1 = SUCCESS (payment received into virtual account)
+     *
+     * Note: these differ from the bill-payment order status codes
+     * (where 2 = success). The VA cash-in API uses 1 for success.
+     */
+    private const ORDER_STATUS_SUCCESS = 1;
 
     public function handleWebhook(Request $request): Response
     {
@@ -21,7 +27,7 @@ class PalmpayVirtualAccountController extends Controller
 
         Log::info('PalmPay VA Webhook received', ['payload' => $payload]);
 
-        // Signature is a required field per PalmPay docs
+        // Signature is required per PalmPay docs
         $sign = $payload['sign'] ?? '';
 
         if (empty($sign)) {
@@ -36,13 +42,12 @@ class PalmpayVirtualAccountController extends Controller
             return response('invalid signature', 401);
         }
 
-        // Per docs: orderStatus 2 = success
         $orderStatus      = (int) ($payload['orderStatus']      ?? -1);
         $merchantUserId   = $payload['merchantUserId']          ?? null;
         $virtualAccountNo = $payload['virtualAccountNo']        ?? null;
         $orderNo          = $payload['orderNo']                 ?? '';
 
-        // orderAmount is in cents (100 = 1 NGN) per PalmPay docs
+        // orderAmount is in kobo — 10000 kobo = ₦100
         $orderAmountKobo = (int) ($payload['orderAmount'] ?? 0);
         $amountNaira     = $orderAmountKobo / 100;
 
@@ -51,7 +56,7 @@ class PalmpayVirtualAccountController extends Controller
                 'orderStatus' => $orderStatus,
                 'orderNo'     => $orderNo,
             ]);
-            // Must respond 200 + plain "success" to stop PalmPay retries
+            // Respond 200 + plain "success" to stop PalmPay retries
             return response('success', 200);
         }
 
@@ -60,8 +65,12 @@ class PalmpayVirtualAccountController extends Controller
             return response('invalid amount', 400);
         }
 
-        // Locate user — prefer merchantUserId (sId set at VA creation), fall back to account number
+        // Locate user — prefer merchantUserId (sId) if present, fall back to virtualAccountNo
         $user = null;
+
+        if ($merchantUserId) {
+            $user = User::find((int) $merchantUserId);
+        }
 
         if (! $user && $virtualAccountNo) {
             $user = User::where('sBankNo', $virtualAccountNo)->first();
@@ -73,11 +82,11 @@ class PalmpayVirtualAccountController extends Controller
                 'virtualAccountNo' => $virtualAccountNo,
                 'orderNo'          => $orderNo,
             ]);
-            // Return success to PalmPay to stop retries — the user genuinely doesn't exist
+            // Respond success to stop retries — this user genuinely does not exist
             return response('success', 200);
         }
 
-        // Apply wallet funding charges if configured (from admin palmpay-setting)
+        // Apply wallet funding charges if configured in admin palmpay-setting
         $config  = ApiConfig::all();
         $charges = (float) (getConfigValue($config, 'palmpayVirtualAccountCharges') ?? 0);
 
@@ -98,7 +107,12 @@ class PalmpayVirtualAccountController extends Controller
                 : ' with a ' . ($charges * 100) . '% service charge')
             : '';
 
-        $serviceDesc = "Wallet funding of ₦{$amountNaira} via PalmPay virtual account{$chargesText}."
+        $payerName = $payload['payerAccountName'] ?? 'unknown sender';
+        $payerBank = $payload['payerBankName']    ?? '';
+
+        $serviceDesc = "Wallet funding of ₦{$amountNaira} received from {$payerName}"
+            . ($payerBank ? " ({$payerBank})" : '')
+            . " via PalmPay virtual account{$chargesText}."
             . " Your wallet has been credited with ₦{$amountToCredit}.";
 
         try {
@@ -107,18 +121,18 @@ class PalmpayVirtualAccountController extends Controller
                 $amountToCredit,
                 'Wallet Topup',
                 $serviceDesc,
-                0,             // status 0 = success
-                0,             // profit
+                0,              // status 0 = success
+                0,              // profit
                 $orderNo ?: null
             );
 
             Log::info('PalmPay VA Webhook: wallet credited', [
-                'user_id'        => $user->sId,
-                'amount_naira'   => $amountToCredit,
-                'orderNo'        => $orderNo,
+                'user_id'      => $user->sId,
+                'amount_naira' => $amountToCredit,
+                'orderNo'      => $orderNo,
             ]);
 
-            // PalmPay requires plain-text "success" response — not JSON
+            // PalmPay requires plain-text "success" — not JSON
             return response('success', 200);
         } catch (\Throwable $e) {
             Log::error('PalmPay VA Webhook: failed to credit wallet', [
@@ -126,7 +140,7 @@ class PalmpayVirtualAccountController extends Controller
                 'error'   => $e->getMessage(),
             ]);
 
-            // Return non-200 so PalmPay will retry
+            // Non-200 tells PalmPay to retry
             return response('error', 500);
         }
     }
