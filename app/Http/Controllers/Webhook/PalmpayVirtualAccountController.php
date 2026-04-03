@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Webhook;
 
 use App\Http\Controllers\Controller;
+use App\Mail\WalletFunded;
 use App\Models\ApiConfig;
 use App\Models\User;
 use App\Services\Palmpay\VirtualAccountService as PalmpayVAService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class PalmpayVirtualAccountController extends Controller
 {
@@ -103,20 +105,20 @@ class PalmpayVirtualAccountController extends Controller
 
         $chargesText = $charges > 0
             ? ($charges >= 1
-                ? " with a ₦{$charges} service charge"
+                ? " with a N{$charges} service charge"
                 : ' with a ' . ($charges * 100) . '% service charge')
             : '';
 
         $payerName = $payload['payerAccountName'] ?? 'unknown sender';
         $payerBank = $payload['payerBankName']    ?? '';
 
-        $serviceDesc = "Wallet funding of ₦{$amountNaira} received from {$payerName}"
+        $serviceDesc = "Wallet funding of N{$amountNaira} received from {$payerName}"
             . ($payerBank ? " ({$payerBank})" : '')
             . " via PalmPay virtual account{$chargesText}."
-            . " Your wallet has been credited with ₦{$amountToCredit}.";
+            . " Your wallet has been credited with N{$amountToCredit}.";
 
         try {
-            creditWallet(
+            $result = creditWallet(
                 $user,
                 $amountToCredit,
                 'Wallet Topup',
@@ -131,6 +133,24 @@ class PalmpayVirtualAccountController extends Controller
                 'amount_naira' => $amountToCredit,
                 'orderNo'      => $orderNo,
             ]);
+
+            // Send email notification — catch separately so a mail failure never blocks the 200 response
+            try {
+                Mail::to($user->sEmail)->send(new WalletFunded(
+                    firstName:      $user->sFname,
+                    amountReceived: $amountNaira,
+                    amountCredited: $amountToCredit,
+                    newBalance:     (float) ($result['new_balance'] ?? $user->fresh()->sWallet),
+                    payerName:      $payerName,
+                    payerBank:      $payerBank,
+                    orderNo:        $orderNo,
+                ));
+            } catch (\Throwable $mailException) {
+                Log::warning('PalmPay VA Webhook: failed to send funding email', [
+                    'user_id' => $user->sId,
+                    'error'   => $mailException->getMessage(),
+                ]);
+            }
 
             // PalmPay requires plain-text "success" — not JSON
             return response('success', 200);
