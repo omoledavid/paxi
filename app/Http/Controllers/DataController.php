@@ -7,6 +7,7 @@ use App\Enums\TransactionStatus;
 use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\NetworkResource;
 use App\Models\ApiConfig;
+use App\Models\DataDiscount;
 use App\Models\DataPlan;
 use App\Models\NelloBytesTransaction;
 use App\Models\Network;
@@ -50,8 +51,11 @@ class DataController extends Controller
         $this->vtpassTransactionService = $vtpassTransactionService;
     }
 
-    public function data(): JsonResponse
+    public function data(Request $request): JsonResponse
     {
+        $user = auth()->user();
+        $request->attributes->set('user_stype', (int) $user->sType);
+
         $data = Network::with('dataPlans')->get();
 
         // Priority: Palmpay -> VTU Africa -> NelloBytes -> VTpass -> all
@@ -104,7 +108,15 @@ class DataController extends Controller
         $dataCode = DataPlan::find($validatedData['data_plan_id']);
         $networkID = '0' . $validatedData['network_id'];
         if ($dataCode) {
-            $amount = $dataCode->userprice;
+            $dataDiscount = DataDiscount::forNetwork((int) $dataCode->datanetwork);
+            $discountRate = match ((int) $user->sType) {
+                0 => $dataDiscount->dUserDiscount ?? 100,
+                1 => $dataDiscount->dUserDiscount ?? 100,
+                2 => $dataDiscount->dAgentDiscount ?? 100,
+                3 => $dataDiscount->dVendorDiscount ?? 100,
+                default => 100,
+            };
+            $amount = round(($dataCode->userprice / 100) * $discountRate, 2);
         } else {
             return $this->error('data plan not found');
         }
@@ -113,11 +125,11 @@ class DataController extends Controller
 
         // Priority: Palmpay -> VTU Africa -> NelloBytes -> VTpass -> Legacy
         if ($this->isPalmpayEnabled()) {
-            return $this->purchasePalmpayData($validatedData, $user, $dataCode, $transRef);
+            return $this->purchasePalmpayData($validatedData, $user, $dataCode, $transRef, $amount);
         }
 
         if ($this->isVtuAfricaEnabled()) {
-            return $this->purchaseVtuAfricaData($validatedData, $user, $dataCode, $transRef);
+            return $this->purchaseVtuAfricaData($validatedData, $user, $dataCode, $transRef, $amount);
         }
 
         if ($this->isNellobytesEnabled()) {
@@ -380,9 +392,8 @@ class DataController extends Controller
     /**
      * Purchase data via PalmPay.
      */
-    private function purchasePalmpayData(array $validated, $user, DataPlan $dataCode, string $transRef): JsonResponse
+    private function purchasePalmpayData(array $validated, $user, DataPlan $dataCode, string $transRef, float $amount): JsonResponse
     {
-        $amount = $dataCode->userprice;
 
         // Map network ID and data type to PalmPay service code
         $service = PalmpayDataService::mapServiceCode(
@@ -458,9 +469,8 @@ class DataController extends Controller
     /**
      * Purchase data via VTU Africa.
      */
-    private function purchaseVtuAfricaData(array $validated, $user, DataPlan $dataCode, string $transRef): JsonResponse
+    private function purchaseVtuAfricaData(array $validated, $user, DataPlan $dataCode, string $transRef, float $amount): JsonResponse
     {
-        $amount = $dataCode->userprice;
 
         // Map network ID and data type to VTU Africa service code
         $service = VtuAfricaDataService::mapServiceCode(
