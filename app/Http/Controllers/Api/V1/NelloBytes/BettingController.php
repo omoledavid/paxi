@@ -74,18 +74,18 @@ class BettingController extends Controller
     public function getCompanies(): JsonResponse
     {
         try {
-            if ($this->isPalmpayEnabled()) {
-                $companies = [
-                    ['PRODUCT_CODE' => 'bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                    ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                    ['PRODUCT_CODE' => 'betking', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                    ['PRODUCT_CODE' => '1xbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ];
+            // if ($this->isPalmpayEnabled()) {
+            //     $companies = [
+            //         ['PRODUCT_CODE' => 'bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+            //         ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+            //         ['PRODUCT_CODE' => 'betking', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+            //         ['PRODUCT_CODE' => '1xbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+            //     ];
 
-                return $this->ok('Betting companies retrieved successfully', [
-                    'BETTING_COMPANY' => $companies
-                ]);
-            }
+            //     return $this->ok('Betting companies retrieved successfully', [
+            //         'BETTING_COMPANY' => $companies
+            //     ]);
+            // }
 
             $companies = [
                 ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
