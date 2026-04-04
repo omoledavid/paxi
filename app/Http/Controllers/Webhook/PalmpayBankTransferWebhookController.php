@@ -48,8 +48,9 @@ class PalmpayBankTransferWebhookController extends Controller
         $orderId     = $payload['orderId']      ?? '';
         $orderStatus = (int) ($payload['orderStatus'] ?? -1);
 
-        // orderAmount is in kobo — 10000 kobo = ₦100
-        $amountKobo  = (int) ($payload['orderAmount'] ?? 0);
+        // Bank transfer webhook uses "amount" (not "orderAmount" like VA cash-in).
+        // Both are in kobo — 10000 kobo = ₦100
+        $amountKobo  = (int) ($payload['amount'] ?? $payload['orderAmount'] ?? 0);
         $amountNaira = $amountKobo / 100;
 
         // Find the pending transaction by provider_ref (orderNo) or transaction_ref (orderId)
@@ -88,7 +89,7 @@ class PalmpayBankTransferWebhookController extends Controller
         }
 
         if ($amountNaira <= 0) {
-            Log::warning('PalmPay BankTransfer Webhook: invalid orderAmount', ['orderAmount' => $amountKobo]);
+            Log::warning('PalmPay BankTransfer Webhook: invalid amount', ['amount_kobo' => $amountKobo]);
             return response('invalid amount', 400);
         }
 
