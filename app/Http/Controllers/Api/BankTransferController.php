@@ -67,4 +67,23 @@ class BankTransferController extends Controller
             return $this->error('Failed to generate payment account. Please try again.', 500);
         }
     }
+
+    /**
+     * Check the status of a pending bank transfer order.
+     * Used by the frontend to poll for payment confirmation.
+     */
+    public function status(Request $request, string $orderId): JsonResponse
+    {
+        $transaction = PalmpayTransaction::where('transaction_ref', $orderId)
+            ->where('user_id', $request->user()->sId)
+            ->first();
+
+        if (! $transaction) {
+            return $this->error('Transaction not found.', 404);
+        }
+
+        return $this->ok('Transaction status retrieved.', [
+            'status' => $transaction->status->value, // 'pending' | 'success' | 'failed'
+        ]);
+    }
 }

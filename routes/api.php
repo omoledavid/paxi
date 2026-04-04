@@ -69,6 +69,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
 
     // PalmPay Bank Transfer
     Route::post('bank-transfer/initiate', [BankTransferController::class, 'initiate']);
+    Route::get('bank-transfer/status/{orderId}', [BankTransferController::class, 'status']);
 
     // Data
     Route::controller(DataController::class)->group(function () {
