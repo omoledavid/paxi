@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Webhook\NelloBytesController;
+use App\Http\Controllers\Webhook\PalmpayBankTransferWebhookController;
 use App\Http\Controllers\Webhook\PalmpayVirtualAccountController;
 use App\Http\Controllers\Webhook\PaystackWebhookController;
 use App\Http\Controllers\Webhook\VtpassController;
@@ -24,6 +25,9 @@ Route::match(['get', 'post'], 'vtpass', [VtpassController::class, 'handleWebhook
 
 Route::post('palmpay/virtual-account', [PalmpayVirtualAccountController::class, 'handleWebhook'])
     ->name('webhooks.palmpay.virtual-account');
+
+Route::post('palmpay/bank-transfer', [PalmpayBankTransferWebhookController::class, 'handleWebhook'])
+    ->name('webhooks.palmpay.bank-transfer');
 
 Route::post('paystack', [PaystackWebhookController::class, 'handleWebhook'])
     ->name('webhooks.paystack');

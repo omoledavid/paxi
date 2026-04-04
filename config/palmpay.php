@@ -56,7 +56,8 @@ return [
         'create_order'           => 'order/create',
         'query_order'            => 'order/query',
         'query_recharge_account' => 'rechargeaccount/query',
-        'virtual_account_create' => 'virtual/account/label/create',
+        'virtual_account_create'     => 'virtual/account/label/create',
+        'bank_transfer_create_order' => 'payment/merchant/createorder',
     ],
 
     /*

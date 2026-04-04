@@ -119,9 +119,11 @@ class PalmpayClient
                     );
                 }
 
-                // PalmPay success: respCode "00000000" and status true
+                // PalmPay success: respCode "00000000"
+                // Some APIs (e.g. bank transfer) omit the "status" field entirely.
+                // We treat a missing status as success; only explicit false = failure.
                 $respCode = $dataArray['respCode'] ?? null;
-                if ($respCode === '00000000' && ($dataArray['status'] ?? false) === true) {
+                if ($respCode === '00000000' && ($dataArray['status'] ?? true) !== false) {
                     return $dataArray;
                 }
 

@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthorizationController;
 use App\Http\Controllers\Api\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\BankTransferController;
 use App\Http\Controllers\Api\VirtualAccountController;
 use App\Http\Controllers\CableTvController;
 use App\Http\Controllers\DataController;
@@ -65,6 +66,9 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     // Paystack Instant Funding (Checkout)
     Route::post('paystack/checkout/initialize', [PaystackCheckoutController::class, 'initialize']);
     Route::get('paystack/checkout/verify/{reference}', [PaystackCheckoutController::class, 'verify']);
+
+    // PalmPay Bank Transfer
+    Route::post('bank-transfer/initiate', [BankTransferController::class, 'initiate']);
 
     // Data
     Route::controller(DataController::class)->group(function () {
