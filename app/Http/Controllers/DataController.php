@@ -57,6 +57,9 @@ class DataController extends Controller
         $request->attributes->set('user_stype', (int) $user->sType);
 
         $data = Network::with('dataPlans')->get();
+        // $plans = $this->palmpayDataService->getPlans();
+
+        // return $this->ok('success', [ 'plans' => $plans ]);
 
         // Priority: Palmpay -> VTU Africa -> NelloBytes -> VTpass -> all
         if ($this->isPalmpayEnabled()) {

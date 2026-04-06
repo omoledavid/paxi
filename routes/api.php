@@ -27,6 +27,7 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/register', 'register');
     Route::post('/login', 'login');
 })->middleware(['throttle:6,1']);
+
 Route::post('login/verify-device', [AuthController::class, 'verifyDevice'])->middleware('throttle:10,5');
 Route::post('login/resend-device-otp', [AuthController::class, 'resendDeviceOtp'])->middleware('throttle:3,10');
 Route::controller(ForgotPasswordController::class)->group(function () {

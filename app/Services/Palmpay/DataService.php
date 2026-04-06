@@ -83,4 +83,15 @@ class DataService extends PalmpayClient
 
         return $network . '_' . $type;
     }
+    public function getPlans()
+    {
+        $endpoint = config('palmpay.endpoints.query_biller');
+        $params = [
+            'sceneCode' => 'betting',
+        ];
+        
+        $response = $this->makeRequest($endpoint, $params, 'POST');
+        
+        return $response['data'] ?? [];
+    }
 }

@@ -74,18 +74,35 @@ class BettingController extends Controller
     public function getCompanies(): JsonResponse
     {
         try {
-            // if ($this->isPalmpayEnabled()) {
-            //     $companies = [
-            //         ['PRODUCT_CODE' => 'bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-            //         ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-            //         ['PRODUCT_CODE' => 'betking', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-            //         ['PRODUCT_CODE' => '1xbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-            //     ];
+            if ($this->isPalmpayEnabled()) {
+                $companies = [
+                    ['PRODUCT_CODE' => 'iLotBet', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'Bet9ja', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 20000000],
+                    ['PRODUCT_CODE' => 'EasyWin', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 100000000],
+                    ['PRODUCT_CODE' => 'BetKing', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => '1XBET', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'Betano', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'BangBet', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'Betway', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'WGB Agent', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 50000000],
+                    ['PRODUCT_CODE' => 'BETWINNER', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 5000000],
+                    ['PRODUCT_CODE' => 'PariPesa', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 5000000],
+                    ['PRODUCT_CODE' => 'Waje Game', 'MINAMOUNT' => 100000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'Betgr8', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'Surebet247', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'Africa 365', 'MINAMOUNT' => 50000, 'MAXAMOUNT' => 50000000],
+                    ['PRODUCT_CODE' => 'Nairabet', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'AccessBET', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'BetBaba', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                    ['PRODUCT_CODE' => 'BETWGB online', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 20000000],
+                    ['PRODUCT_CODE' => 'BetCorrect', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 50000000],
+                    ['PRODUCT_CODE' => 'NaijaBet', 'MINAMOUNT' => 10000, 'MAXAMOUNT' => 10000000],
+                ];
 
-            //     return $this->ok('Betting companies retrieved successfully', [
-            //         'BETTING_COMPANY' => $companies
-            //     ]);
-            // }
+                return $this->ok('Betting companies retrieved successfully', [
+                    'BETTING_COMPANY' => $companies
+                ]);
+            }
 
             $companies = [
                 ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
