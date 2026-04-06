@@ -4,6 +4,7 @@ namespace App\Services\Palmpay;
 
 use App\Exceptions\PalmpayApiException;
 use App\Exceptions\PalmpayInvalidCustomerException;
+use Illuminate\Support\Facades\Cache;
 
 class BettingService extends PalmpayClient
 {
@@ -55,30 +56,42 @@ class BettingService extends PalmpayClient
     /**
      * Fetch and cache the correct itemId for a betting company from PalmPay item/query API.
      *
-     * @throws PalmpayApiException
+     * Returns null for companies that don't support item/query (e.g. Nairabet).
+     * A null itemId is stripped from the request body by makeRequest, so PalmPay
+     * receives the order without an itemId for those companies.
+     *
+     * Uses explicit Cache::get/put to avoid race conditions with Cache::remember.
      */
-    public function getBettingItemId(string $billerId): string
+    public function getBettingItemId(string $billerId): ?string
     {
         $cacheKey = 'palmpay:betting:item:' . $billerId;
+        $ttl      = config('palmpay.cache.ttl', 86400);
 
-        return $this->remember($cacheKey, function () use ($billerId) {
-            try {
-                $response = $this->queryItem('betting', $billerId);
-                $items    = $response['data'] ?? [];
+        $cached = Cache::get($cacheKey, '__MISS__');
+        if ($cached !== '__MISS__') {
+            return $cached === '__NULL__' ? null : $cached;
+        }
 
-                // Return the first available item
-                foreach ($items as $item) {
-                    if (isset($item['status']) && $item['status'] == 1) {
-                        return $item['itemId'];
-                    }
+        $itemId = null;
+
+        try {
+            $response = $this->queryItem('betting', $billerId);
+            $items    = $response['data'] ?? [];
+
+            foreach ($items as $item) {
+                if (isset($item['status']) && $item['status'] == 1) {
+                    $itemId = $item['itemId'];
+                    break;
                 }
-            } catch (PalmpayApiException $e) {
-                // Some betting companies don't support item/query (returns INVALID_PARAMETER).
-                // Fall back to billerId as itemId for these companies.
             }
+        } catch (PalmpayApiException $e) {
+            // Company doesn't support item/query — itemId stays null
+        }
 
-            return $billerId;
-        });
+        // Store a sentinel for null so we don't re-query on the next request
+        Cache::put($cacheKey, $itemId ?? '__NULL__', $ttl);
+
+        return $itemId;
     }
 
     /**
@@ -149,7 +162,7 @@ class BettingService extends PalmpayClient
         $params = [
             'sceneCode'       => 'betting',
             'billerId'        => $billerId,
-            'itemId'          => $this->getBettingItemId($billerId),
+            'itemId'          => $this->getBettingItemId($billerId), // null = omitted from request
             'amount'          => (int) ($amount * 100), // Convert Naira to kobo
             'rechargeAccount' => $customerId,
             'outOrderNo'      => $transactionRef,
@@ -185,6 +198,6 @@ class BettingService extends PalmpayClient
      */
     public function clearItemCache(string $billerId): void
     {
-        $this->clearCache('palmpay:betting:item:' . $billerId);
+        Cache::forget('palmpay:betting:item:' . $billerId);
     }
 }
