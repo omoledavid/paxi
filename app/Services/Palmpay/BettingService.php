@@ -62,17 +62,21 @@ class BettingService extends PalmpayClient
         $cacheKey = 'palmpay:betting:item:' . $billerId;
 
         return $this->remember($cacheKey, function () use ($billerId) {
-            $response = $this->queryItem('betting', $billerId);
-            $items    = $response['data'] ?? [];
+            try {
+                $response = $this->queryItem('betting', $billerId);
+                $items    = $response['data'] ?? [];
 
-            // Return the first available item
-            foreach ($items as $item) {
-                if (isset($item['status']) && $item['status'] == 1) {
-                    return $item['itemId'];
+                // Return the first available item
+                foreach ($items as $item) {
+                    if (isset($item['status']) && $item['status'] == 1) {
+                        return $item['itemId'];
+                    }
                 }
+            } catch (PalmpayApiException $e) {
+                // Some betting companies don't support item/query (returns INVALID_PARAMETER).
+                // Fall back to billerId as itemId for these companies.
             }
 
-            // Fallback: use billerId as itemId if no items returned
             return $billerId;
         });
     }
