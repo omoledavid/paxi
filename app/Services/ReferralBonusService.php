@@ -134,6 +134,9 @@ class ReferralBonusService
                 // Also check if the signup bonus conditions are now met
                 static::checkAndCreditSignupBonus($user);
 
+                // Auto-sweep referral wallet to main wallet if threshold is met
+                static::autoPayoutIfThresholdMet($referrer);
+
                 return [
                     'referrer_id' => $referrer->sId,
                     'bonus_percentage' => $bonusPercentage,
@@ -267,6 +270,9 @@ class ReferralBonusService
                     'min_transaction_amount' => $minAmount,
                 ]);
 
+                // Auto-sweep referral wallet to main wallet if threshold is met
+                static::autoPayoutIfThresholdMet($referrer);
+
                 return [
                     'referrer_id' => $referrer->sId,
                     'bonus_amount' => $signupBonus,
@@ -281,6 +287,119 @@ class ReferralBonusService
             ]);
 
             return null;
+        }
+    }
+
+    /**
+     * Auto-sweep the referrer's referral wallet to their main wallet
+     * if the balance meets or exceeds the configured threshold.
+     *
+     * This runs synchronously on every bonus credit (no cron needed).
+     * A threshold of 0 means the feature is disabled for that role.
+     *
+     * @param  User  $referrer
+     */
+    private static function autoPayoutIfThresholdMet(User $referrer): void
+    {
+        try {
+            // 1. Get threshold for referrer's role (fall back to role 0)
+            $referrerRole = (int) $referrer->sType;
+            $commission = ReferralCommission::forRole($referrerRole)
+                ?? ReferralCommission::forRole(0);
+
+            if (! $commission) {
+                return;
+            }
+
+            $threshold = (float) $commission->auto_payout_threshold;
+            if ($threshold <= 0) {
+                return; // Feature disabled
+            }
+
+            // 2. Re-read fresh referral wallet balance (after the credit just applied)
+            $refBalance = (float) DB::table('subscribers')
+                ->where('sId', $referrer->sId)
+                ->value('sRefWallet');
+
+            if ($refBalance < $threshold) {
+                return; // Threshold not yet reached
+            }
+
+            // 3. Atomically sweep full referral balance to main wallet.
+            //    The WHERE guard (sRefWallet = :balance) acts as an optimistic lock —
+            //    if another process already swept, 0 rows are updated and we bail out.
+            DB::transaction(function () use ($referrer, $refBalance) {
+                $affected = DB::table('subscribers')
+                    ->where('sId', $referrer->sId)
+                    ->where('sRefWallet', $refBalance)
+                    ->update([
+                        'sWallet'    => DB::raw("sWallet + {$refBalance}"),
+                        'sRefWallet' => DB::raw('sRefWallet - ' . $refBalance),
+                    ]);
+
+                if ($affected === 0) {
+                    return; // Swept by a concurrent request — skip logging
+                }
+
+                // Fetch updated balances for transaction log
+                $subscriber = DB::table('subscribers')
+                    ->where('sId', $referrer->sId)
+                    ->first();
+
+                $newMainBalance = (float) $subscriber->sWallet;
+                $oldMainBalance = $newMainBalance - $refBalance;
+                $payoutTxRef    = 'AUTOPAYOUT-' . $referrer->sId . '-' . uniqid();
+
+                // Log debit from referral wallet
+                DB::table('transactions')->insert([
+                    'sId'         => $referrer->sId,
+                    'transref'    => $payoutTxRef . '-D',
+                    'servicename' => 'Referral Payout',
+                    'servicedesc' => sprintf(
+                        'Auto payout of N%s from referral wallet to main wallet',
+                        number_format($refBalance, 2)
+                    ),
+                    'amount'      => $refBalance,
+                    'status'      => 0,
+                    'oldbal'      => $refBalance,
+                    'newbal'      => 0,
+                    'profit'      => 0,
+                    'date'        => now(),
+                    'created_at'  => now(),
+                ]);
+
+                // Log credit to main wallet
+                DB::table('transactions')->insert([
+                    'sId'         => $referrer->sId,
+                    'transref'    => $payoutTxRef . '-C',
+                    'servicename' => 'Referral Payout',
+                    'servicedesc' => sprintf(
+                        'Auto payout of N%s credited to main wallet from referral wallet',
+                        number_format($refBalance, 2)
+                    ),
+                    'amount'      => $refBalance,
+                    'status'      => 0,
+                    'oldbal'      => $oldMainBalance,
+                    'newbal'      => $newMainBalance,
+                    'profit'      => 0,
+                    'date'        => now(),
+                    'created_at'  => now(),
+                ]);
+
+                Log::info('Referral auto payout executed', [
+                    'referrer_id'   => $referrer->sId,
+                    'amount_swept'  => $refBalance,
+                    'new_main_bal'  => $newMainBalance,
+                    'payout_ref'    => $payoutTxRef,
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            // Non-fatal — log and continue so the original bonus credit is not rolled back
+            Log::error('Referral auto payout failed', [
+                'referrer_id' => $referrer->sId,
+                'error'       => $e->getMessage(),
+            ]);
         }
     }
 }

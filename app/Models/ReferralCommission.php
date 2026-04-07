@@ -22,6 +22,7 @@ class ReferralCommission extends Model
         'epin_bonus',
         'referral_signup_bonus',
         'min_transaction_amount',
+        'auto_payout_threshold',
     ];
 
     protected $casts = [
@@ -37,6 +38,7 @@ class ReferralCommission extends Model
         'epin_bonus' => 'float',
         'referral_signup_bonus' => 'float',
         'min_transaction_amount' => 'float',
+        'auto_payout_threshold' => 'float',
     ];
 
     /**
