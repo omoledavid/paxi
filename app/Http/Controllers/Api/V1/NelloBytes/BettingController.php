@@ -76,6 +76,12 @@ class BettingController extends Controller
         try {
             if ($this->isPalmpayEnabled()) {
                 $companies = [
+                    ['PRODUCT_CODE' => 'Bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 20000000],//working
+                    ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000], //working
+                    ['PRODUCT_CODE' => 'BetKing', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 10000000],//working
+                    ['PRODUCT_CODE' => '1XBET', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 10000000],//working
+                ];
+                $extras = [
                     ['PRODUCT_CODE' => 'iLotBet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 10000000],
                     ['PRODUCT_CODE' => 'Bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 20000000],
                     ['PRODUCT_CODE' => 'EasyWin', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 100000000],
