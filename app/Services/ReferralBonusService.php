@@ -293,6 +293,129 @@ class ReferralBonusService
     }
 
     /**
+     * Manually trigger a referral-wallet payout for a user.
+     *
+     * Rules:
+     *  - Balance must be > 0
+     *  - If threshold > 0, balance must be >= threshold
+     *  - If threshold == 0, any positive balance can be paid out
+     *
+     * Returns an array with keys: success, message, amount (on success), threshold.
+     *
+     * @param  User  $user
+     */
+    public static function payout(User $user): array
+    {
+        $role       = (int) $user->sType;
+        $commission = ReferralCommission::forRole($role) ?? ReferralCommission::forRole(0);
+        $threshold  = $commission ? (float) $commission->auto_payout_threshold : 0.0;
+
+        $refBalance = (float) DB::table('subscribers')
+            ->where('sId', $user->sId)
+            ->value('sRefWallet');
+
+        if ($refBalance <= 0) {
+            return [
+                'success'   => false,
+                'message'   => 'You have no commission balance to withdraw.',
+                'threshold' => $threshold,
+            ];
+        }
+
+        if ($threshold > 0 && $refBalance < $threshold) {
+            return [
+                'success'   => false,
+                'message'   => sprintf(
+                    'Your commission balance (₦%s) is below the minimum withdrawal threshold of ₦%s.',
+                    number_format($refBalance, 2),
+                    number_format($threshold, 2)
+                ),
+                'threshold' => $threshold,
+            ];
+        }
+
+        try {
+            DB::transaction(function () use ($user, $refBalance) {
+                $affected = DB::table('subscribers')
+                    ->where('sId', $user->sId)
+                    ->where('sRefWallet', $refBalance) // optimistic lock
+                    ->update([
+                        'sWallet'    => DB::raw("sWallet + {$refBalance}"),
+                        'sRefWallet' => DB::raw("sRefWallet - {$refBalance}"),
+                    ]);
+
+                if ($affected === 0) {
+                    return; // concurrent sweep — already done
+                }
+
+                $subscriber  = DB::table('subscribers')->where('sId', $user->sId)->first();
+                $newMainBal  = (float) $subscriber->sWallet;
+                $oldMainBal  = $newMainBal - $refBalance;
+                $payoutTxRef = 'PAYOUT-' . $user->sId . '-' . uniqid();
+
+                DB::table('transactions')->insert([
+                    'sId'         => $user->sId,
+                    'transref'    => $payoutTxRef . '-D',
+                    'servicename' => 'Referral Payout',
+                    'servicedesc' => sprintf(
+                        'Payout of N%s from referral wallet to main wallet',
+                        number_format($refBalance, 2)
+                    ),
+                    'amount'      => $refBalance,
+                    'status'      => 0,
+                    'oldbal'      => $refBalance,
+                    'newbal'      => 0,
+                    'profit'      => 0,
+                    'date'        => now(),
+                    'created_at'  => now(),
+                ]);
+
+                DB::table('transactions')->insert([
+                    'sId'         => $user->sId,
+                    'transref'    => $payoutTxRef . '-C',
+                    'servicename' => 'Referral Payout',
+                    'servicedesc' => sprintf(
+                        'Payout of N%s credited to main wallet from referral wallet',
+                        number_format($refBalance, 2)
+                    ),
+                    'amount'      => $refBalance,
+                    'status'      => 0,
+                    'oldbal'      => $oldMainBal,
+                    'newbal'      => $newMainBal,
+                    'profit'      => 0,
+                    'date'        => now(),
+                    'created_at'  => now(),
+                ]);
+
+                Log::info('Referral manual payout executed', [
+                    'user_id'      => $user->sId,
+                    'amount_swept' => $refBalance,
+                    'new_main_bal' => $newMainBal,
+                    'payout_ref'   => $payoutTxRef,
+                ]);
+            });
+
+            return [
+                'success'   => true,
+                'message'   => sprintf('₦%s has been moved to your main wallet.', number_format($refBalance, 2)),
+                'amount'    => $refBalance,
+                'threshold' => $threshold,
+            ];
+        } catch (\Exception $e) {
+            Log::error('Referral manual payout failed', [
+                'user_id' => $user->sId,
+                'error'   => $e->getMessage(),
+            ]);
+
+            return [
+                'success'   => false,
+                'message'   => 'Payout failed. Please try again.',
+                'threshold' => $threshold,
+            ];
+        }
+    }
+
+    /**
      * Auto-sweep the referrer's referral wallet to their main wallet
      * if the balance meets or exceeds the configured threshold.
      *

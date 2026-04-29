@@ -412,4 +412,22 @@ class UserController extends Controller
             'monthly' => $monthlyLeaderboard,
         ]);
     }
+
+    public function referralPayout(Request $request)
+    {
+        $user   = $request->user();
+        $result = ReferralBonusService::payout($user);
+
+        if (! $result['success']) {
+            return $this->error($result['message'], 422);
+        }
+
+        return $this->ok($result['message'], [
+            'amount_paid'    => $result['amount'],
+            'threshold'      => $result['threshold'],
+            'wallet_balance' => (float) \Illuminate\Support\Facades\DB::table('subscribers')
+                ->where('sId', $user->sId)
+                ->value('sWallet'),
+        ]);
+    }
 }

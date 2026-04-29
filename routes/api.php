@@ -55,6 +55,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('wallet-transfer', [UserController::class, 'walletTransfer']);
     Route::post('users/set-username', [UserController::class, 'setUsername']);
     Route::get('referral-leaderboard', [UserController::class, 'referralLeaderboard']);
+    Route::post('referral/payout', [UserController::class, 'referralPayout']);
     // Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
     // Change password

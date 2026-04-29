@@ -60,8 +60,17 @@ class UserResource extends JsonResource
                 'created_at' => $this->sRegDate,
                 'referral_count' => $this->username ? User::where('sReferal', $this->username)->count() : 0,
                 'referral_commissions' => $this->getReferralCommissions(),
+                'auto_payout_threshold' => $this->getAutoPayoutThreshold(),
             ],
         ];
+    }
+
+    private function getAutoPayoutThreshold(): float
+    {
+        $commission = ReferralCommission::forRole((int) $this->sType)
+            ?? ReferralCommission::forRole(0);
+
+        return $commission ? (float) $commission->auto_payout_threshold : 0.0;
     }
 
     private function getReferralCommissions(): array
