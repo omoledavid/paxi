@@ -363,23 +363,9 @@ class ReferralBonusService
 
                 DB::table('transactions')->insert([
                     'sId'         => $user->sId,
-                    'transref'    => $payoutTxRef . '-D',
+                    'transref'    => $payoutTxRef,
                     'servicename' => 'Referral Payout',
-                    'servicedesc' => sprintf('Payout of N%s from referral wallet to main wallet', number_format($current, 2)),
-                    'amount'      => $current,
-                    'status'      => 0,
-                    'oldbal'      => $current,
-                    'newbal'      => 0,
-                    'profit'      => 0,
-                    'date'        => now(),
-                    'created_at'  => now(),
-                ]);
-
-                DB::table('transactions')->insert([
-                    'sId'         => $user->sId,
-                    'transref'    => $payoutTxRef . '-C',
-                    'servicename' => 'Referral Payout',
-                    'servicedesc' => sprintf('Payout of N%s credited to main wallet from referral wallet', number_format($current, 2)),
+                    'servicedesc' => sprintf('Referral commission of N%s credited to main wallet', number_format($current, 2)),
                     'amount'      => $current,
                     'status'      => 0,
                     'oldbal'      => $oldMainBal,
@@ -488,31 +474,12 @@ class ReferralBonusService
                 $oldMainBalance = $newMainBalance - $refBalance;
                 $payoutTxRef    = 'AUTOPAYOUT-' . $referrer->sId . '-' . uniqid();
 
-                // Log debit from referral wallet
                 DB::table('transactions')->insert([
                     'sId'         => $referrer->sId,
-                    'transref'    => $payoutTxRef . '-D',
+                    'transref'    => $payoutTxRef,
                     'servicename' => 'Referral Payout',
                     'servicedesc' => sprintf(
-                        'Auto payout of N%s from referral wallet to main wallet',
-                        number_format($refBalance, 2)
-                    ),
-                    'amount'      => $refBalance,
-                    'status'      => 0,
-                    'oldbal'      => $refBalance,
-                    'newbal'      => 0,
-                    'profit'      => 0,
-                    'date'        => now(),
-                    'created_at'  => now(),
-                ]);
-
-                // Log credit to main wallet
-                DB::table('transactions')->insert([
-                    'sId'         => $referrer->sId,
-                    'transref'    => $payoutTxRef . '-C',
-                    'servicename' => 'Referral Payout',
-                    'servicedesc' => sprintf(
-                        'Auto payout of N%s credited to main wallet from referral wallet',
+                        'Referral commission of N%s credited to main wallet',
                         number_format($refBalance, 2)
                     ),
                     'amount'      => $refBalance,
