@@ -419,14 +419,14 @@ class UserController extends Controller
 
         $emailVerified  = $user->sRegStatus == 0;
         $mobileVerified = (bool) ($user->sMobileVerified ?? false);
-        $ninVerified    = ! empty($user->nin_verified) && $user->nin_verified == '1';
+        $kycApproved    = $user->kyc_status === 'approved';
 
         if (! $emailVerified || ! $mobileVerified) {
             return $this->error('Account verification required. Please verify your email and phone number to withdraw.', 403);
         }
 
-        if (! $ninVerified) {
-            return $this->error('NIN verification required. Please complete your NIN verification to withdraw.', 403);
+        if (! $kycApproved) {
+            return $this->error('KYC verification required. Please complete your identity verification to withdraw.', 403);
         }
 
         $result = ReferralBonusService::payout($user);
