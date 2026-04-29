@@ -88,7 +88,7 @@ class ReferralBonusService
             }
 
             // 7. Credit the referrer's referral wallet and log transaction
-            return DB::transaction(function () use ($referrer, $refTxRef, $serviceType, $transactionAmount, $bonusPercentage, $bonusAmount, $user, $txRef) {
+            $result = DB::transaction(function () use ($referrer, $refTxRef, $serviceType, $transactionAmount, $bonusPercentage, $bonusAmount, $user, $txRef) {
                 // Capture current balance from database
                 $currentBalance = (float) DB::table('subscribers')
                     ->where('sId', $referrer->sId)
@@ -131,12 +131,6 @@ class ReferralBonusService
                     'transaction_ref' => $txRef,
                 ]);
 
-                // Also check if the signup bonus conditions are now met
-                static::checkAndCreditSignupBonus($user);
-
-                // Auto-sweep referral wallet to main wallet if threshold is met
-                static::autoPayoutIfThresholdMet($referrer);
-
                 return [
                     'referrer_id' => $referrer->sId,
                     'bonus_percentage' => $bonusPercentage,
@@ -144,6 +138,12 @@ class ReferralBonusService
                     'service_type' => $serviceType,
                 ];
             });
+
+            // Run after commit so the fresh sRefWallet balance is visible
+            static::checkAndCreditSignupBonus($user);
+            static::autoPayoutIfThresholdMet($referrer);
+
+            return $result;
 
         } catch (\Exception $e) {
             Log::error('Referral bonus credit failed', [
@@ -231,7 +231,7 @@ class ReferralBonusService
             }
 
             // 7. Credit the referrer's referral wallet and log transaction
-            return DB::transaction(function () use ($referrer, $user, $signupBonus, $referrerUsername, $minAmount) {
+            $result = DB::transaction(function () use ($referrer, $user, $signupBonus, $referrerUsername, $minAmount) {
                 // Capture current balance from database
                 $currentBalance = (float) DB::table('subscribers')
                     ->where('sId', $referrer->sId)
@@ -270,15 +270,17 @@ class ReferralBonusService
                     'min_transaction_amount' => $minAmount,
                 ]);
 
-                // Auto-sweep referral wallet to main wallet if threshold is met
-                static::autoPayoutIfThresholdMet($referrer);
-
                 return [
                     'referrer_id' => $referrer->sId,
                     'bonus_amount' => $signupBonus,
                     'type' => 'signup_bonus',
                 ];
             });
+
+            // Run after commit so the fresh sRefWallet balance is visible
+            static::autoPayoutIfThresholdMet($referrer);
+
+            return $result;
 
         } catch (\Exception $e) {
             Log::error('Referral signup bonus check failed', [

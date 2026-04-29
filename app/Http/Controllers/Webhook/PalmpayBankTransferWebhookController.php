@@ -102,28 +102,39 @@ class PalmpayBankTransferWebhookController extends Controller
             return response('success', 200);
         }
 
-        // Apply wallet funding charges if configured
-        $config  = ApiConfig::all();
-        $charges = (float) (getConfigValue($config, 'palmpayBankTransferCharges') ?? 0);
-
+        // Apply deposit fees using cap-based logic (configured in admin Deposit Settings).
+        // Falls back to the flat palmpayBankTransferCharges when no cap is set.
+        $config         = ApiConfig::all();
+        $cap            = (float) (getConfigValue($config, 'checkoutDepositCap') ?? 0);
         $amountToCredit = $amountNaira;
-        if ($charges > 0) {
-            if ($charges >= 1) {
-                // Fixed naira charge (e.g. 50 = ₦50 flat fee)
-                $amountToCredit = max(0, $amountNaira - $charges);
+        $feeApplied     = 0;
+
+        if ($cap > 0) {
+            if ($amountNaira <= $cap) {
+                $feeType  = getConfigValue($config, 'checkoutBelowCapFeeType') ?? 'fixed';
+                $feeValue = (float) (getConfigValue($config, 'checkoutBelowCapFee') ?? 0);
             } else {
-                // Percentage (e.g. 0.015 = 1.5%)
-                $amountToCredit = $amountNaira - ($amountNaira * $charges);
+                $feeType  = getConfigValue($config, 'checkoutAboveCapFeeType') ?? 'fixed';
+                $feeValue = (float) (getConfigValue($config, 'checkoutAboveCapFee') ?? 0);
+            }
+            if ($feeValue > 0) {
+                $feeApplied     = ($feeType === 'percent') ? $amountNaira * $feeValue / 100 : $feeValue;
+                $amountToCredit = max(0, $amountNaira - $feeApplied);
+            }
+        } else {
+            // Fallback: legacy flat charge stored as decimal (e.g. 0.015 = 1.5%) or Naira (>= 1)
+            $charges = (float) (getConfigValue($config, 'palmpayBankTransferCharges') ?? 0);
+            if ($charges > 0) {
+                $feeApplied     = ($charges >= 1) ? $charges : $amountNaira * $charges;
+                $amountToCredit = max(0, $amountNaira - $feeApplied);
             }
         }
 
         $payerName = $payload['payerAccountName'] ?? 'unknown sender';
         $payerBank = $payload['payerBankName']     ?? '';
 
-        $chargesText = $charges > 0
-            ? ($charges >= 1
-                ? " with a N{$charges} service charge"
-                : ' with a ' . ($charges * 100) . '% service charge')
+        $chargesText = $feeApplied > 0
+            ? ' with a N' . number_format($feeApplied, 2) . ' service charge'
             : '';
 
         $serviceDesc = "Bank transfer of N{$amountNaira} received from {$payerName}"

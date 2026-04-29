@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AccountType;
+use App\Models\ApiConfig;
 use App\Models\GeneralSetting;
 use App\Models\Transaction;
 use App\Traits\ApiResponses;
@@ -136,6 +137,8 @@ class GeneralController extends Controller
 
     public function settings()
     {
+        $config = ApiConfig::all();
+
         return $this->ok('success', [
             'facebook' => gs('facebook'),
             'whatsapp' => gs('whatsapp'),
@@ -150,6 +153,20 @@ class GeneralController extends Controller
             'about' => gs('about'),
             'google_play_url' => gs('google_play_url'),
             'apple_app_url' => gs('apple_app_url'),
+            // Checkout Account (Bank Transfer) deposit settings
+            'checkout_deposit_message'    => getConfigValue($config, 'checkoutDepositMessage'),
+            'checkout_deposit_cap'        => (float) (getConfigValue($config, 'checkoutDepositCap') ?? 0),
+            'checkout_below_cap_fee_type' => getConfigValue($config, 'checkoutBelowCapFeeType') ?? 'fixed',
+            'checkout_below_cap_fee'      => (float) (getConfigValue($config, 'checkoutBelowCapFee') ?? 0),
+            'checkout_above_cap_fee_type' => getConfigValue($config, 'checkoutAboveCapFeeType') ?? 'fixed',
+            'checkout_above_cap_fee'      => (float) (getConfigValue($config, 'checkoutAboveCapFee') ?? 0),
+            // Wallet Account (Virtual Account) deposit settings
+            'wallet_deposit_message'      => getConfigValue($config, 'walletDepositMessage'),
+            'wallet_deposit_cap'          => (float) (getConfigValue($config, 'walletDepositCap') ?? 0),
+            'wallet_below_cap_fee_type'   => getConfigValue($config, 'walletBelowCapFeeType') ?? 'fixed',
+            'wallet_below_cap_fee'        => (float) (getConfigValue($config, 'walletBelowCapFee') ?? 0),
+            'wallet_above_cap_fee_type'   => getConfigValue($config, 'walletAboveCapFeeType') ?? 'fixed',
+            'wallet_above_cap_fee'        => (float) (getConfigValue($config, 'walletAboveCapFee') ?? 0),
         ]);
     }
 }
