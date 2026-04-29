@@ -334,36 +334,41 @@ class ReferralBonusService
             ];
         }
 
-        try {
-            DB::transaction(function () use ($user, $refBalance) {
-                $affected = DB::table('subscribers')
-                    ->where('sId', $user->sId)
-                    ->where('sRefWallet', $refBalance) // optimistic lock
-                    ->update([
-                        'sWallet'    => DB::raw("sWallet + {$refBalance}"),
-                        'sRefWallet' => DB::raw("sRefWallet - {$refBalance}"),
-                    ]);
+        $swept       = false;
+        $sweptAmount = 0.0;
 
-                if ($affected === 0) {
-                    return; // concurrent sweep — already done
+        try {
+            DB::transaction(function () use ($user, &$swept, &$sweptAmount) {
+                // Lock the row so no concurrent sweep can interfere
+                $current = (float) DB::table('subscribers')
+                    ->where('sId', $user->sId)
+                    ->lockForUpdate()
+                    ->value('sRefWallet');
+
+                if ($current <= 0) {
+                    return; // Nothing to sweep (race condition)
                 }
+
+                DB::table('subscribers')
+                    ->where('sId', $user->sId)
+                    ->update([
+                        'sWallet'    => DB::raw("sWallet + {$current}"),
+                        'sRefWallet' => 0,
+                    ]);
 
                 $subscriber  = DB::table('subscribers')->where('sId', $user->sId)->first();
                 $newMainBal  = (float) $subscriber->sWallet;
-                $oldMainBal  = $newMainBal - $refBalance;
+                $oldMainBal  = $newMainBal - $current;
                 $payoutTxRef = 'PAYOUT-' . $user->sId . '-' . uniqid();
 
                 DB::table('transactions')->insert([
                     'sId'         => $user->sId,
                     'transref'    => $payoutTxRef . '-D',
                     'servicename' => 'Referral Payout',
-                    'servicedesc' => sprintf(
-                        'Payout of N%s from referral wallet to main wallet',
-                        number_format($refBalance, 2)
-                    ),
-                    'amount'      => $refBalance,
+                    'servicedesc' => sprintf('Payout of N%s from referral wallet to main wallet', number_format($current, 2)),
+                    'amount'      => $current,
                     'status'      => 0,
-                    'oldbal'      => $refBalance,
+                    'oldbal'      => $current,
                     'newbal'      => 0,
                     'profit'      => 0,
                     'date'        => now(),
@@ -374,11 +379,8 @@ class ReferralBonusService
                     'sId'         => $user->sId,
                     'transref'    => $payoutTxRef . '-C',
                     'servicename' => 'Referral Payout',
-                    'servicedesc' => sprintf(
-                        'Payout of N%s credited to main wallet from referral wallet',
-                        number_format($refBalance, 2)
-                    ),
-                    'amount'      => $refBalance,
+                    'servicedesc' => sprintf('Payout of N%s credited to main wallet from referral wallet', number_format($current, 2)),
+                    'amount'      => $current,
                     'status'      => 0,
                     'oldbal'      => $oldMainBal,
                     'newbal'      => $newMainBal,
@@ -389,16 +391,27 @@ class ReferralBonusService
 
                 Log::info('Referral manual payout executed', [
                     'user_id'      => $user->sId,
-                    'amount_swept' => $refBalance,
+                    'amount_swept' => $current,
                     'new_main_bal' => $newMainBal,
                     'payout_ref'   => $payoutTxRef,
                 ]);
+
+                $swept       = true;
+                $sweptAmount = $current;
             });
+
+            if (! $swept) {
+                return [
+                    'success'   => false,
+                    'message'   => 'No balance to withdraw.',
+                    'threshold' => $threshold,
+                ];
+            }
 
             return [
                 'success'   => true,
-                'message'   => sprintf('₦%s has been moved to your main wallet.', number_format($refBalance, 2)),
-                'amount'    => $refBalance,
+                'message'   => sprintf('₦%s has been moved to your main wallet.', number_format($sweptAmount, 2)),
+                'amount'    => $sweptAmount,
                 'threshold' => $threshold,
             ];
         } catch (\Exception $e) {

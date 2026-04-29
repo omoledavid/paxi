@@ -415,7 +415,20 @@ class UserController extends Controller
 
     public function referralPayout(Request $request)
     {
-        $user   = $request->user();
+        $user = $request->user();
+
+        $emailVerified  = $user->sRegStatus == 0;
+        $mobileVerified = (bool) ($user->sMobileVerified ?? false);
+        $ninVerified    = ! empty($user->nin_verified) && $user->nin_verified == '1';
+
+        if (! $emailVerified || ! $mobileVerified) {
+            return $this->error('Account verification required. Please verify your email and phone number to withdraw.', 403);
+        }
+
+        if (! $ninVerified) {
+            return $this->error('NIN verification required. Please complete your NIN verification to withdraw.', 403);
+        }
+
         $result = ReferralBonusService::payout($user);
 
         if (! $result['success']) {
