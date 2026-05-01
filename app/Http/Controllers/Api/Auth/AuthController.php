@@ -31,6 +31,7 @@ class AuthController extends Controller
             'state' => 'nullable',
             'pin' => 'nullable|min:4',
             'referral' => 'nullable',
+            'sRegDate' => now(),
         ]);
         if (preg_match('/[^a-zA-Z0-9_ ]/', $request->fname)) {
             $response[] = 'No special characters or capital letters are allowed in the name field.';
