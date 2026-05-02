@@ -24,12 +24,12 @@ use App\Http\Controllers\Api\V1\Vtpass\SpectranetController as VtpassSpectranetC
 use Illuminate\Support\Facades\Route;
 
 Route::controller(AuthController::class)->group(function () {
-    Route::post('/register', 'register');
-    Route::post('/login', 'login');
+    Route::post('/register', 'register')->middleware('check.system.status:signup');
+    Route::post('/login', 'login')->middleware('check.system.status:login');
 })->middleware(['throttle:6,1']);
 
-Route::post('login/verify-device', [AuthController::class, 'verifyDevice'])->middleware('throttle:10,5');
-Route::post('login/resend-device-otp', [AuthController::class, 'resendDeviceOtp'])->middleware('throttle:3,10');
+Route::post('login/verify-device', [AuthController::class, 'verifyDevice'])->middleware('throttle:10,5', 'check.system.status:login');
+Route::post('login/resend-device-otp', [AuthController::class, 'resendDeviceOtp'])->middleware('throttle:3,10', 'check.system.status:login');
 Route::controller(ForgotPasswordController::class)->group(function () {
     Route::post('password/email', 'sendResetCodeEmail')->middleware(['throttle.verification:password', 'throttle:3,60']);
     Route::post('password/verify-code', 'verifyCode')->middleware('throttle:10,120');
@@ -52,10 +52,10 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     });
     // User
     Route::apiResource('user', UserController::class);
-    Route::post('wallet-transfer', [UserController::class, 'walletTransfer']);
+    Route::post('wallet-transfer', [UserController::class, 'walletTransfer'])->middleware('check.system.status:transactions');
     Route::post('users/set-username', [UserController::class, 'setUsername']);
     Route::get('referral-leaderboard', [UserController::class, 'referralLeaderboard']);
-    Route::post('referral/payout', [UserController::class, 'referralPayout']);
+    Route::post('referral/payout', [UserController::class, 'referralPayout'])->middleware('check.system.status:transactions');
     // Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
     // Change password
@@ -66,25 +66,25 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('create-virtual-account', [VirtualAccountController::class, 'create']);
 
     // Paystack Instant Funding (Checkout)
-    Route::post('paystack/checkout/initialize', [PaystackCheckoutController::class, 'initialize']);
+    Route::post('paystack/checkout/initialize', [PaystackCheckoutController::class, 'initialize'])->middleware('check.system.status:transactions');
     Route::get('paystack/checkout/verify/{reference}', [PaystackCheckoutController::class, 'verify']);
 
     // PalmPay Bank Transfer
-    Route::post('bank-transfer/initiate', [BankTransferController::class, 'initiate']);
+    Route::post('bank-transfer/initiate', [BankTransferController::class, 'initiate'])->middleware('check.system.status:transactions');
     Route::get('bank-transfer/status/{orderId}', [BankTransferController::class, 'status']);
 
     // Data
     Route::controller(DataController::class)->group(function () {
         Route::prefix('data')->group(function () {
             Route::get('/', 'data');
-            Route::post('/', 'purchaseData');
+            Route::post('/', 'purchaseData')->middleware('check.system.status:transactions');
         });
     });
     // Electricity
     Route::controller(ElectricityController::class)->group(function () {
         Route::prefix('electricity')->group(function () {
             Route::get('/', 'index');
-            Route::post('/', 'purchaseElectricity');
+            Route::post('/', 'purchaseElectricity')->middleware('check.system.status:transactions');
             Route::get('/history', 'purchaseHistory');
             Route::post('/verify-meter', 'verifyMeterNo');
         });
@@ -92,13 +92,13 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     // Airtime
     Route::prefix('airtime')->group(function () {
         Route::get('/', [AirtimeController::class, 'index']);
-        Route::post('/', [AirtimeController::class, 'purchaseAirtime']);
+        Route::post('/', [AirtimeController::class, 'purchaseAirtime'])->middleware('check.system.status:transactions');
     });
     // Tv cable
     Route::controller(CableTvController::class)->group(function () {
         Route::prefix('cable')->group(function () {
             Route::get('/', 'index');
-            Route::post('/', 'purchaseCableTv');
+            Route::post('/', 'purchaseCableTv')->middleware('check.system.status:transactions');
             Route::post('/verify', 'verifyIUC');
         });
     });
@@ -106,13 +106,13 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::prefix('exam-card')->group(function () {
         Route::get('/', [ExamCardController::class, 'index']);
         Route::get('/history', [ExamCardController::class, 'purchaseHistory']);
-        Route::post('/', [ExamCardController::class, 'purchaseExamCardPin']);
+        Route::post('/', [ExamCardController::class, 'purchaseExamCardPin'])->middleware('check.system.status:transactions');
     });
     // Settings
     Route::controller(GeneralController::class)->group(function () {
-        Route::post('verify-network', 'verifyNetwork');
-        Route::post('agent', 'agent');
-        Route::post('vendor', 'vendor');
+        Route::post('verify-network', 'verifyNetwork')->middleware('check.system.status:transactions');
+        Route::post('agent', 'agent')->middleware('check.system.status:transactions');
+        Route::post('vendor', 'vendor')->middleware('check.system.status:transactions');
         Route::get('support', 'supportInfo');
         Route::post('support', 'support');
     });
@@ -137,12 +137,12 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         // Smile
         Route::post('smile/verify', [VtpassSmileController::class, 'verify']);
         Route::get('smile/bundles', [VtpassSmileController::class, 'getBundles']);
-        Route::post('smile/purchase', [VtpassSmileController::class, 'purchase']);
+        Route::post('smile/purchase', [VtpassSmileController::class, 'purchase'])->middleware('check.system.status:transactions');
 
         // Spectranet
         Route::post('spectranet/verify', [VtpassSpectranetController::class, 'verify']);
         Route::get('spectranet/bundles', [VtpassSpectranetController::class, 'getBundles']);
-        Route::post('spectranet/purchase', [VtpassSpectranetController::class, 'purchase']);
+        Route::post('spectranet/purchase', [VtpassSpectranetController::class, 'purchase'])->middleware('check.system.status:transactions');
     });
 });
 

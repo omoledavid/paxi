@@ -36,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.status' => \App\Http\Middleware\CheckStatus::class,
             'token.recent' => \App\Http\Middleware\EnsureRecentActivity::class,
             'throttle.verification' => \App\Http\Middleware\ThrottleEmailVerification::class,
+            'check.system.status' => \App\Http\Middleware\CheckSystemStatus::class,
         ]);
 
         // Exclude webhook routes from CSRF protection
