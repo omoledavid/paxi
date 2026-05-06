@@ -56,7 +56,32 @@ class User extends Authenticatable
             'locked_at' => 'datetime',
             'locked_until' => 'datetime',
             'kyc_approved_at' => 'datetime',
+            'is_banned' => 'boolean',
+            'banned_at' => 'datetime',
         ];
+    }
+
+    public function isVerifiedForTransactions(): bool
+    {
+        return $this->kyc_status === 'approved'
+            && $this->sRegStatus == 0
+            && (int) $this->sMobileVerified === 1;
+    }
+
+    public function dailyTransactionTotal(): float
+    {
+        return (float) \App\Models\Transaction::where('sId', $this->sId)
+            ->where('created_at', '>=', now()->subDay())
+            ->sum('amount');
+    }
+
+    public function ban(string $reason): void
+    {
+        $this->update([
+            'is_banned' => 1,
+            'banned_at' => now(),
+            'banned_reason' => $reason,
+        ]);
     }
 
     public function kycAttempts()

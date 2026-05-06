@@ -37,6 +37,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'token.recent' => \App\Http\Middleware\EnsureRecentActivity::class,
             'throttle.verification' => \App\Http\Middleware\ThrottleEmailVerification::class,
             'check.system.status' => \App\Http\Middleware\CheckSystemStatus::class,
+            'verified.user' => \App\Http\Middleware\EnsureUserVerified::class,
+            'txn.daily.limit' => \App\Http\Middleware\EnforceDailyTransactionLimit::class,
+            'txn.burst.guard' => \App\Http\Middleware\DetectTransactionBurst::class,
+            'signup.ip.guard' => \App\Http\Middleware\ThrottleSignupByIp::class,
         ]);
 
         // Exclude webhook routes from CSRF protection

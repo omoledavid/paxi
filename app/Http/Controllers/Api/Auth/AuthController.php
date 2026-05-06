@@ -136,6 +136,10 @@ class AuthController extends Controller
         if ($user->sRegStatus == 3) {
             return $this->error(['Your account is not verified.'], 403);
         }
+        //update last login
+        $user->update([
+            'sLastActivity' => now(),
+        ]);
 
         $user->unlockAccount();
 

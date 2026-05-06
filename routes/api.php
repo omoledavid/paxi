@@ -24,7 +24,7 @@ use App\Http\Controllers\Api\V1\Vtpass\SpectranetController as VtpassSpectranetC
 use Illuminate\Support\Facades\Route;
 
 Route::controller(AuthController::class)->group(function () {
-    Route::post('/register', 'register')->middleware('check.system.status:signup');
+    Route::post('/register', 'register')->middleware(['signup.ip.guard', 'check.system.status:signup']);
     Route::post('/login', 'login')->middleware('check.system.status:login');
 })->middleware(['throttle:6,1']);
 
@@ -52,10 +52,10 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     });
     // User
     Route::apiResource('user', UserController::class);
-    Route::post('wallet-transfer', [UserController::class, 'walletTransfer'])->middleware('check.system.status:transactions');
+    Route::post('wallet-transfer', [UserController::class, 'walletTransfer'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     Route::post('users/set-username', [UserController::class, 'setUsername']);
     Route::get('referral-leaderboard', [UserController::class, 'referralLeaderboard']);
-    Route::post('referral/payout', [UserController::class, 'referralPayout'])->middleware('check.system.status:transactions');
+    Route::post('referral/payout', [UserController::class, 'referralPayout'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     // Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
     // Change password
@@ -66,25 +66,25 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('create-virtual-account', [VirtualAccountController::class, 'create']);
 
     // Paystack Instant Funding (Checkout)
-    Route::post('paystack/checkout/initialize', [PaystackCheckoutController::class, 'initialize'])->middleware('check.system.status:transactions');
+    Route::post('paystack/checkout/initialize', [PaystackCheckoutController::class, 'initialize'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     Route::get('paystack/checkout/verify/{reference}', [PaystackCheckoutController::class, 'verify']);
 
     // PalmPay Bank Transfer
-    Route::post('bank-transfer/initiate', [BankTransferController::class, 'initiate'])->middleware('check.system.status:transactions');
+    Route::post('bank-transfer/initiate', [BankTransferController::class, 'initiate'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     Route::get('bank-transfer/status/{orderId}', [BankTransferController::class, 'status']);
 
     // Data
     Route::controller(DataController::class)->group(function () {
         Route::prefix('data')->group(function () {
             Route::get('/', 'data');
-            Route::post('/', 'purchaseData')->middleware('check.system.status:transactions');
+            Route::post('/', 'purchaseData')->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
         });
     });
     // Electricity
     Route::controller(ElectricityController::class)->group(function () {
         Route::prefix('electricity')->group(function () {
             Route::get('/', 'index');
-            Route::post('/', 'purchaseElectricity')->middleware('check.system.status:transactions');
+            Route::post('/', 'purchaseElectricity')->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
             Route::get('/history', 'purchaseHistory');
             Route::post('/verify-meter', 'verifyMeterNo');
         });
@@ -92,13 +92,13 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     // Airtime
     Route::prefix('airtime')->group(function () {
         Route::get('/', [AirtimeController::class, 'index']);
-        Route::post('/', [AirtimeController::class, 'purchaseAirtime'])->middleware('check.system.status:transactions');
+        Route::post('/', [AirtimeController::class, 'purchaseAirtime'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
     // Tv cable
     Route::controller(CableTvController::class)->group(function () {
         Route::prefix('cable')->group(function () {
             Route::get('/', 'index');
-            Route::post('/', 'purchaseCableTv')->middleware('check.system.status:transactions');
+            Route::post('/', 'purchaseCableTv')->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
             Route::post('/verify', 'verifyIUC');
         });
     });
@@ -106,13 +106,13 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::prefix('exam-card')->group(function () {
         Route::get('/', [ExamCardController::class, 'index']);
         Route::get('/history', [ExamCardController::class, 'purchaseHistory']);
-        Route::post('/', [ExamCardController::class, 'purchaseExamCardPin'])->middleware('check.system.status:transactions');
+        Route::post('/', [ExamCardController::class, 'purchaseExamCardPin'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
     // Settings
     Route::controller(GeneralController::class)->group(function () {
-        Route::post('verify-network', 'verifyNetwork')->middleware('check.system.status:transactions');
-        Route::post('agent', 'agent')->middleware('check.system.status:transactions');
-        Route::post('vendor', 'vendor')->middleware('check.system.status:transactions');
+        Route::post('verify-network', 'verifyNetwork')->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
+        Route::post('agent', 'agent')->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
+        Route::post('vendor', 'vendor')->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
         Route::get('support', 'supportInfo');
         Route::post('support', 'support');
     });
@@ -137,16 +137,17 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
         // Smile
         Route::post('smile/verify', [VtpassSmileController::class, 'verify']);
         Route::get('smile/bundles', [VtpassSmileController::class, 'getBundles']);
-        Route::post('smile/purchase', [VtpassSmileController::class, 'purchase'])->middleware('check.system.status:transactions');
+        Route::post('smile/purchase', [VtpassSmileController::class, 'purchase'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
 
         // Spectranet
         Route::post('spectranet/verify', [VtpassSpectranetController::class, 'verify']);
         Route::get('spectranet/bundles', [VtpassSpectranetController::class, 'getBundles']);
-        Route::post('spectranet/purchase', [VtpassSpectranetController::class, 'purchase'])->middleware('check.system.status:transactions');
+        Route::post('spectranet/purchase', [VtpassSpectranetController::class, 'purchase'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
 });
 
 Route::get('settings', [GeneralController::class, 'settings']);
+Route::get('ad-banner', [GeneralController::class, 'adBanner']);)
 
 // Webhooks (Public but Signed)
 Route::post('webhooks/smile-identity', [KycController::class, 'handleWebhook']);

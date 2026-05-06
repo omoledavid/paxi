@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AccountType;
+use App\Models\AdBanner;
 use App\Models\ApiConfig;
 use App\Models\GeneralSetting;
 use App\Models\Transaction;
@@ -167,6 +168,18 @@ class GeneralController extends Controller
             'wallet_below_cap_fee'        => (float) (getConfigValue($config, 'walletBelowCapFee') ?? 0),
             'wallet_above_cap_fee_type'   => getConfigValue($config, 'walletAboveCapFeeType') ?? 'fixed',
             'wallet_above_cap_fee'        => (float) (getConfigValue($config, 'walletAboveCapFee') ?? 0),
+        ]);
+    }
+
+    public function adBanner()
+    {
+        $banner = AdBanner::find(1);
+        $base = rtrim((string) env('ADMIN_PUBLIC_URL', ''), '/');
+
+        return $this->ok('success', [
+            'active'    => (bool) ($banner->active ?? false),
+            'image_url' => $banner && $banner->image ? $base.'/assets/img/ads/'.$banner->image : null,
+            'link_url'  => $banner->link_url ?? null,
         ]);
     }
 }

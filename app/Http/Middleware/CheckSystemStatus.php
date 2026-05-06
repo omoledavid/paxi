@@ -17,9 +17,7 @@ class CheckSystemStatus
     public function handle(Request $request, Closure $next, string $type): Response
     {
         // Cache settings for 5 minutes to avoid frequent DB queries
-        $settings = Cache::remember('system_settings', 300, function () {
-            return \App\Models\GeneralSetting::first();
-        });
+        $settings = \App\Models\GeneralSetting::first();
 
         if (! $settings) {
             return $next($request);

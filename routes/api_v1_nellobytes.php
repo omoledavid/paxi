@@ -30,7 +30,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::prefix('epin')->group(function () {
         Route::get('discounts', [EpinController::class, 'getDiscounts']);
         Route::get('history', [EpinController::class, 'history']);
-        Route::post('buy', [EpinController::class, 'printCard']);
+        Route::post('buy', [EpinController::class, 'printCard'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
         Route::get('query', [EpinController::class, 'query']);
     });
 
