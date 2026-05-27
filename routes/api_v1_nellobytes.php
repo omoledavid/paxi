@@ -23,14 +23,14 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::prefix('betting')->group(function () {
         Route::get('companies', [BettingController::class, 'getCompanies']);
         Route::post('verify', [BettingController::class, 'verifyCustomer']);
-        Route::post('fund', [BettingController::class, 'fund']);
+        Route::post('fund', [BettingController::class, 'fund'])->middleware(['pnd.check', 'check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
 
     // EPIN routes
     Route::prefix('epin')->group(function () {
         Route::get('discounts', [EpinController::class, 'getDiscounts']);
         Route::get('history', [EpinController::class, 'history']);
-        Route::post('buy', [EpinController::class, 'printCard'])->middleware(['check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
+        Route::post('buy', [EpinController::class, 'printCard'])->middleware(['pnd.check', 'check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
         Route::get('query', [EpinController::class, 'query']);
     });
 
@@ -38,24 +38,24 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::prefix('smile')->group(function () {
         Route::get('packages', [SmileController::class, 'getPackages']);
         Route::post('verify', [SmileController::class, 'verify']);
-        Route::post('buy', [SmileController::class, 'buyBundle']);
+        Route::post('buy', [SmileController::class, 'buyBundle'])->middleware(['pnd.check', 'check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
 
     // Spectranet routes
     Route::prefix('spectranet')->group(function () {
         Route::get('packages', [SpectranetController::class, 'getPackages']);
-        Route::post('buy', [SpectranetController::class, 'buyBundle']);
+        Route::post('buy', [SpectranetController::class, 'buyBundle'])->middleware(['pnd.check', 'check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
 
     // Data
     Route::prefix('data')->group(function () {
         Route::get('dataplan', [DataController::class, 'getDataplan']);
-        Route::post('buy', [DataController::class, 'buyData']);
+        Route::post('buy', [DataController::class, 'buyData'])->middleware(['pnd.check', 'check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
 
     // Electricity
     Route::prefix('electricity')->group(function () {
         Route::get('providers', [ElectricityController::class, 'getProviders']);
-        Route::post('buy', [ElectricityController::class, 'buyElectricity']);
+        Route::post('buy', [ElectricityController::class, 'buyElectricity'])->middleware(['pnd.check', 'check.system.status:transactions', 'verified.user', 'txn.burst.guard', 'txn.daily.limit']);
     });
 });

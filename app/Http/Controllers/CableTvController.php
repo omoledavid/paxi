@@ -7,6 +7,8 @@ use App\Enums\TransactionStatus;
 use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\CableTvResource;
 use App\Models\ApiConfig;
+use App\Models\CableDiscount;
+use App\Models\CablePlan;
 use App\Models\CableTv;
 use App\Models\NelloBytesTransaction;
 use App\Models\PaystackTransaction;
@@ -71,6 +73,7 @@ class CableTvController extends Controller
                             'cpId' => $plan['code'],
                             'name' => $plan['name'],
                             'userprice' => $plan['price'],
+                            'cableprovider' => 1, // GOTV
                             'day' => '30',
                             'planid' => $plan['code'],
                         ];
@@ -86,6 +89,7 @@ class CableTvController extends Controller
                             'cpId' => $plan['code'],
                             'name' => $plan['name'],
                             'userprice' => $plan['price'],
+                            'cableprovider' => 2, // DSTV
                             'day' => '30',
                             'planid' => $plan['code'],
                         ];
@@ -101,6 +105,7 @@ class CableTvController extends Controller
                             'cpId' => $plan['code'],
                             'name' => $plan['name'],
                             'userprice' => $plan['price'],
+                            'cableprovider' => 3, // STARTIMES
                             'day' => '30',
                             'planid' => $plan['code'],
                         ];
@@ -115,16 +120,20 @@ class CableTvController extends Controller
                     // Items is an array of provider details, usually just one entry
                     $info = $items[0] ?? [];
                     $products = $info['PRODUCT'] ?? [];
+                    // Map provider names to IDs
+                    $providerMap = ['GOTV' => 1, 'DSTV' => 2, 'STARTIMES' => 3, 'SHOWMAX' => 4];
+                    $providerId = $providerMap[strtoupper($providerName)] ?? null;
 
                     return (object) [
                         'cId' => $info['ID'] ?? strtolower($providerName),
                         'provider' => $providerName,
                         'providerStatus' => 'Active',
-                        'plans' => collect($products)->map(function ($plan) {
+                        'plans' => collect($products)->map(function ($plan) use ($providerId) {
                             return (object) [
                                 'cpId' => $plan['PACKAGE_ID'],
                                 'name' => $plan['PACKAGE_NAME'],
                                 'userprice' => $plan['PACKAGE_AMOUNT'],
+                                'cableprovider' => $providerId,
                                 'day' => '30', // Default value or derived if available
                                 'planid' => $plan['PACKAGE_ID'], // ensure compatibility if used elsewhere
                             ];
@@ -138,16 +147,20 @@ class CableTvController extends Controller
             // Map Paystack plans to expected structure
             if (isset($response['data'])) {
                 $cableTv = collect($response['data'])->map(function ($provider) {
+                    // Map provider names to IDs
+                    $providerMap = ['GOTV' => 1, 'DSTV' => 2, 'STARTIMES' => 3, 'SHOWMAX' => 4];
+                    $providerId = $providerMap[strtoupper($provider['name'])] ?? null;
+
                     return (object) [
-                        'cId' => $provider['id'] ?? strtolower($provider['name']), // Check paystack response
+                        'cId' => $provider['id'] ?? strtolower($provider['name']),
                         'provider' => $provider['name'],
                         'providerStatus' => 'Active',
-                        'plans' => collect($provider['opts'] ?? [])->map(function ($plan) {
-                            // Assuming standard format or arbitrary mapping
+                        'plans' => collect($provider['opts'] ?? [])->map(function ($plan) use ($providerId) {
                             return (object) [
-                                'cpId' => $plan['code'], // Paystack plan code
+                                'cpId' => $plan['code'],
                                 'name' => $plan['name'],
-                                'userprice' => $plan['amount'] / 100, // Paystack is kobo
+                                'userprice' => $plan['amount'] / 100,
+                                'cableprovider' => $providerId,
                                 'day' => '30',
                                 'planid' => $plan['code'],
                             ];
@@ -172,11 +185,12 @@ class CableTvController extends Controller
                     $response = $this->vtpassTvService->getVariations($serviceID);
 
                     if (isset($response['content']['varations'])) {
-                        $plans = collect($response['content']['varations'])->map(function ($plan) {
+                        $plans = collect($response['content']['varations'])->map(function ($plan) use ($provider) {
                             return (object) [
                                 'cpId' => $plan['variation_code'],
                                 'name' => $plan['name'],
                                 'userprice' => $plan['variation_amount'],
+                                'cableprovider' => $provider->cId, // Provider ID from database
                                 'day' => '30', // Default
                                 'planid' => $plan['variation_code'],
                             ];
@@ -216,6 +230,19 @@ class CableTvController extends Controller
             'iuc_no' => 'required',
             'pin' => 'required',
         ]);
+
+        // Calculate discounted price based on plan and user role
+        $cablePlan = CablePlan::find($validatedData['plan_id']);
+        if ($cablePlan) {
+            $calculatedPrice = CableDiscount::calculatePrice(
+                (float) $cablePlan->userprice,
+                (int) $cablePlan->cableprovider,
+                (int) $user->sType
+            );
+            // Override the validated price with calculated discounted price
+            $validatedData['price'] = (int) $calculatedPrice;
+        }
+
         if ($this->isVtuAfricaEnabled()) {
             return $this->purchaseVtuAfricaCableTv($validatedData, $user);
         } elseif ($this->isNellobytesEnabled()) {

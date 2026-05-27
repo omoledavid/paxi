@@ -41,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'txn.daily.limit' => \App\Http\Middleware\EnforceDailyTransactionLimit::class,
             'txn.burst.guard' => \App\Http\Middleware\DetectTransactionBurst::class,
             'signup.ip.guard' => \App\Http\Middleware\ThrottleSignupByIp::class,
+            'pnd.check'       => \App\Http\Middleware\CheckPostNoDebit::class,
         ]);
 
         // Exclude webhook routes from CSRF protection

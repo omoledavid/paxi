@@ -120,6 +120,16 @@ class AirtimeController extends Controller
 
             // Calculate payable amount: (Amount / 100) * DiscountRate
             $payableAmount = ($validated['amount'] / 100) * $discountRate;
+
+            debitWallet(
+                user: $user,
+                amount: $payableAmount,
+                serviceName: 'Airtime Purchase',
+                serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']} at NGN{$payableAmount}",
+                transactionRef: $transactionRef,
+                wrapInTransaction: false,
+            );
+            
             $result = $this->airtimeService->purchaseAirtime(
                 networkCode: $networkID,
                 phoneNumber: $validated['phone_number'],
@@ -132,14 +142,6 @@ class AirtimeController extends Controller
             }
 
             // Debit wallet after successful API call
-            debitWallet(
-                user: $user,
-                amount: $payableAmount,
-                serviceName: 'Airtime Purchase',
-                serviceDesc: "Purchased NGN{$validated['amount']} airtime for {$validated['phone_number']} at NGN{$payableAmount}",
-                transactionRef: $transactionRef,
-                wrapInTransaction: false,
-            );
             $this->nelloBytesTransactionService->handleProviderResponse(
                 $result,
                 $transaction,

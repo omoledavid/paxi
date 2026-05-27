@@ -325,7 +325,16 @@ class UserController extends Controller
                                    ->from('transactions as t')
                                    ->whereColumn('t.sId', 'referred.sId')
                                    ->where('t.status', '=', 0) // 0 = success
-                                   ->whereNotIn('t.servicename', ['Referral Bonus', 'Wallet Credit', 'Refund', 'Debit'])
+                                   ->whereNotIn('t.servicename', [
+                                       'Referral Bonus',
+                                       'Referral Signup Bonus',
+                                       'Referral Payout',
+                                       'Wallet Transfer',
+                                       'Wallet Credit',
+                                       'Wallet Refund',
+                                       'Refund',
+                                       'Debit',
+                                   ])
                                    ->havingRaw('COALESCE(SUM(t.amount), 0) >= COALESCE(rc.min_transaction_amount, 0)');
                       });
             })
@@ -376,7 +385,16 @@ class UserController extends Controller
                                    ->from('transactions as t')
                                    ->whereColumn('t.sId', 'referred.sId')
                                    ->where('t.status', '=', 0) // 0 = success
-                                   ->whereNotIn('t.servicename', ['Referral Bonus', 'Wallet Credit', 'Refund', 'Debit'])
+                                   ->whereNotIn('t.servicename', [
+                                       'Referral Bonus',
+                                       'Referral Signup Bonus',
+                                       'Referral Payout',
+                                       'Wallet Transfer',
+                                       'Wallet Credit',
+                                       'Wallet Refund',
+                                       'Refund',
+                                       'Debit',
+                                   ])
                                    ->havingRaw('COALESCE(SUM(t.amount), 0) >= COALESCE(rc.min_transaction_amount, 0)');
                       });
             })

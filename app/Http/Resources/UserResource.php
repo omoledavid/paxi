@@ -38,6 +38,7 @@ class UserResource extends JsonResource
                 'kyc_status' => $this->kyc_status,
                 'epin_business_name' => $this->epin_business_name,
                 'epin_customer_care' => $this->epin_customer_care,
+                'pnd_active' => (bool) $this->pnd_active,
                 'banks' => [
                     [
                         'name'         => $this->sBankName ?? 'Wema Bank',

@@ -58,6 +58,7 @@ class User extends Authenticatable
             'kyc_approved_at' => 'datetime',
             'is_banned' => 'boolean',
             'banned_at' => 'datetime',
+            'pnd_active' => 'boolean',
         ];
     }
 
@@ -72,6 +73,7 @@ class User extends Authenticatable
     {
         return (float) \App\Models\Transaction::where('sId', $this->sId)
             ->where('created_at', '>=', now()->subDay())
+            ->whereNotIn('servicename', ['Wallet Topup', 'Wallet Funding', 'Wallet Credit', 'Referral Payout'])
             ->sum('amount');
     }
 

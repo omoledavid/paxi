@@ -8,5 +8,5 @@ class EProvider extends Model
 {
     protected $table = 'electricityid';
     protected $primaryKey = 'eId';
-    
+    public $timestamps = false;
 }

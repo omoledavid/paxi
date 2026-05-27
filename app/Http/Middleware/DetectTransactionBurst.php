@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Mail\AccountBanned;
 use App\Mail\AdminSecurityAlert;
+use App\Models\BlockedIp;
 use App\Models\SecurityViolation;
 use App\Support\SecuritySettings;
 use Closure;
@@ -48,6 +49,16 @@ class DetectTransactionBurst
         if (count($timestamps) >= $threshold) {
             $user->ban('High-frequency transactions: ' . count($timestamps) . ' attempts in ' . $window . 's');
             Cache::forget($key);
+
+            // Also block the IP so it appears in the admin Blocked IPs table with user association
+            BlockedIp::updateOrCreate(
+                ['ip' => $request->ip()],
+                [
+                    'blocked_until' => null, // indefinite — admin must manually unblock
+                    'reason'        => 'Auto-blocked: transaction burst by user ' . $user->sEmail,
+                    'created_at'    => now(),
+                ]
+            );
 
             SecurityViolation::create([
                 'user_id' => $user->sId,

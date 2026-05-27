@@ -10,6 +10,7 @@ use App\Http\Resources\ElectricityResource;
 use App\Mail\SendElectricityToken;
 use App\Models\ApiConfig;
 use App\Models\EProvider;
+use App\Models\ElectricityDiscount;
 use App\Models\NelloBytesTransaction;
 use App\Models\PaystackTransaction;
 use App\Models\VtuAfricaTransaction;
@@ -59,10 +60,28 @@ class ElectricityController extends Controller
         if ($this->isVtuAfricaEnabled()) {
             // VTU Africa uses static provider list from config
             // Map to format expected by ElectricityCompanyResource
+            // Look up local provider ID for discount mapping
             $providers = collect(config('vtuafrica.electricity_providers', []))->map(function ($provider) {
+                $configName = $provider['name'] ?? '';
+                $configCode = $provider['code'] ?? '';
+                
+                // Extract name before parentheses (e.g., "Port Harcourt Electric (PHEDC)" -> "Port Harcourt Electric")
+                $extractedName = preg_replace('/\s*\([^)]*\)/', '', $configName);
+                
+                // Extract abbreviation from parentheses (e.g., "Port Harcourt Electric (PHEDC)" -> "PHEDC")
+                preg_match('/\(([^)]+)\)/', $configName, $matches);
+                $extractedAbbreviation = $matches[1] ?? '';
+                
+                // Try multiple matching strategies
+                $localProvider = EProvider::where('provider', 'LIKE', '%' . $extractedName . '%')
+                    ->orWhere('abbreviation', $extractedAbbreviation)
+                    ->orWhere('abbreviation', strtoupper($configCode))
+                    ->first();
+                
                 return [
-                    'ID' => $provider['code'],
-                    'NAME' => $provider['name'],
+                    'ID' => $localProvider ? $localProvider->eId : $configCode,
+                    'NAME' => $configName,
+                    'provider_id' => $localProvider ? $localProvider->eId : null,
                 ];
             });
 
@@ -80,6 +99,23 @@ class ElectricityController extends Controller
             // Flatten: extract the single object from each disco's array
             $providers = collect($response['ELECTRIC_COMPANY'])
                 ->flatten(1) // turns [[obj], [obj], ...] → [obj, obj, ...]
+                ->map(function ($provider) {
+                    $providerName = $provider['NAME'] ?? $provider['name'] ?? '';
+                    // Look up local provider by provider name OR abbreviation for discount mapping
+                    $localProvider = EProvider::where('provider', 'LIKE', '%' . $providerName . '%')
+                        ->orWhere('abbreviation', 'LIKE', '%' . $providerName . '%')
+                        ->orWhere(function ($query) use ($providerName) {
+                            // Also try matching if provider name contains abbreviation (e.g., "Port Harcourt Electric (PHEDC)")
+                            $query->where('abbreviation', 'LIKE', '%' . str_replace(['(', ')', ' '], '', $providerName) . '%');
+                        })
+                        ->first();
+                    
+                    return [
+                        'ID' => $localProvider ? $localProvider->eId : ($provider['ID'] ?? $provider['id']),
+                        'NAME' => $providerName,
+                        'provider_id' => $localProvider ? $localProvider->eId : null,
+                    ];
+                })
                 ->values(); // re-index numerically
 
             return $this->ok('success', [
@@ -91,10 +127,21 @@ class ElectricityController extends Controller
             // Map Paystack response
             if (isset($response['data'])) {
                 $providers = collect($response['data'])->map(function ($provider) {
+                    $providerName = $provider['name'] ?? '';
+                    // Look up local provider by provider name OR abbreviation for discount mapping
+                    $localProvider = EProvider::where('provider', 'LIKE', '%' . $providerName . '%')
+                        ->orWhere('abbreviation', 'LIKE', '%' . $providerName . '%')
+                        ->orWhere(function ($query) use ($providerName) {
+                            // Also try matching if provider name contains abbreviation
+                            $query->where('abbreviation', 'LIKE', '%' . str_replace(['(', ')', ' '], '', $providerName) . '%');
+                        })
+                        ->first();
+                    
                     return (object) [
-                        'beId' => $provider['id'],
+                        'beId' => $localProvider ? $localProvider->eId : $provider['id'],
                         'name' => $provider['name'],
                         'code' => $provider['id'] ?? $provider['code'], // Paystack code
+                        'provider_id' => $localProvider ? $localProvider->eId : null,
                     ];
                 });
 
@@ -133,6 +180,18 @@ class ElectricityController extends Controller
 
         // ref code
         $transRef = generateTransactionRef();
+
+        // Calculate discounted amount
+        $originalAmount = (float) $validatedData['amount'];
+        $providerId = (int) $validatedData['provider_id'];
+        $discountInfo = ElectricityDiscount::calculatePayableAmount($originalAmount, $providerId, (int) $user->sType);
+        
+        // Store discount info in validated data for use in purchase methods
+        $validatedData['original_amount'] = $originalAmount;
+        $validatedData['payable_amount'] = $discountInfo['payable_amount'];
+        $validatedData['discount_applied'] = $discountInfo['discount_applied'];
+        $validatedData['discount_amount'] = $discountInfo['discount_amount'];
+        $validatedData['discount_percentage'] = $discountInfo['discount_percentage'];
 
         // Priority: VTU Africa -> NelloBytes -> Paystack -> VTpass -> Legacy
         if ($this->isVtuAfricaEnabled()) {
@@ -388,18 +447,20 @@ class ElectricityController extends Controller
         // purchase data using nellobytes
         DB::beginTransaction();
         try {
-            $amount = $validatedData['amount'];
+            $originalAmount = $validatedData['original_amount'] ?? $validatedData['amount'];
+            $payableAmount = $validatedData['payable_amount'] ?? $originalAmount;
+            
             $transaction = NelloBytesTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => NelloBytesServiceType::ELECTRICITY,
                 'transaction_ref' => $transRef,
-                'amount' => $amount,
+                'amount' => $payableAmount,
                 'status' => TransactionStatus::PENDING,
                 'request_payload' => $validatedData,
             ]);
             $debit = debitWallet(
                 user: $user,
-                amount: $amount,
+                amount: $payableAmount,
                 serviceName: 'Electricity Purchase',
                 serviceDesc: 'Purchase of electricity plan',
                 transactionRef: $transRef,
@@ -419,7 +480,7 @@ class ElectricityController extends Controller
                 $response,
                 $transaction,
                 $user,
-                $amount
+                $payableAmount
             );
 
             // Check if token exists in response and send email
@@ -427,7 +488,7 @@ class ElectricityController extends Controller
                 try {
                     \Illuminate\Support\Facades\Mail::to($user->sEmail)->send(new \App\Mail\SendElectricityToken(
                         $response['metertoken'],
-                        $amount,
+                        $originalAmount,
                         $validatedData['meter_no'],
                         $transRef
                     ));
@@ -437,7 +498,7 @@ class ElectricityController extends Controller
             }
             DB::commit();
 
-            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
+            ReferralBonusService::credit($user, $payableAmount, ReferralBonusService::METER, $transRef);
 
             return $this->ok('Electricity purchase successful', $response);
         } catch (\Exception $e) {
@@ -470,19 +531,21 @@ class ElectricityController extends Controller
     {
         DB::beginTransaction();
         try {
-            $amount = $validatedData['amount'];
+            $originalAmount = $validatedData['original_amount'] ?? $validatedData['amount'];
+            $payableAmount = $validatedData['payable_amount'] ?? $originalAmount;
+            
             $transaction = PaystackTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => \App\Enums\PaystackServiceType::ELECTRICITY,
                 'transaction_ref' => $transRef,
-                'amount' => $amount,
+                'amount' => $payableAmount,
                 'status' => TransactionStatus::PENDING,
                 'request_payload' => $validatedData,
             ]);
 
             debitWallet(
                 user: $user,
-                amount: $amount,
+                amount: $payableAmount,
                 serviceName: 'Electricity Purchase',
                 serviceDesc: 'Purchase of electricity plan',
                 transactionRef: $transRef,
@@ -493,7 +556,7 @@ class ElectricityController extends Controller
                 provider: $validatedData['provider_id'],
                 meterNumber: $validatedData['meter_no'],
                 meterType: $validatedData['meter_type'],
-                amount: $amount,
+                amount: $originalAmount,
                 phoneNo: $user->sPhone,
                 email: $user->email
             );
@@ -502,7 +565,7 @@ class ElectricityController extends Controller
                 $response,
                 $transaction,
                 $user,
-                $amount
+                $payableAmount
             );
 
             // Send standard email logic (same as NelloBytes usually)
@@ -511,7 +574,7 @@ class ElectricityController extends Controller
                 try {
                     \Illuminate\Support\Facades\Mail::to($user->sEmail)->send(new \App\Mail\SendElectricityToken(
                         $response['data']['token'],
-                        $amount,
+                        $originalAmount,
                         $validatedData['meter_no'],
                         $transRef
                     ));
@@ -522,7 +585,7 @@ class ElectricityController extends Controller
 
             DB::commit();
 
-            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
+            ReferralBonusService::credit($user, $payableAmount, ReferralBonusService::METER, $transRef);
 
             return $this->ok('Electricity purchase successful', $response);
         } catch (\Exception $e) {
@@ -540,19 +603,21 @@ class ElectricityController extends Controller
     {
         DB::beginTransaction();
         try {
-            $amount = $validatedData['amount'];
+            $originalAmount = $validatedData['original_amount'] ?? $validatedData['amount'];
+            $payableAmount = $validatedData['payable_amount'] ?? $originalAmount;
+            
             $transaction = VtpassTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => 'electricity-bill',
                 'transaction_ref' => $transRef,
-                'amount' => $amount,
+                'amount' => $payableAmount,
                 'status' => TransactionStatus::PENDING,
                 'request_payload' => $validatedData,
             ]);
 
             debitWallet(
                 user: $user,
-                amount: $amount,
+                amount: $payableAmount,
                 serviceName: 'Electricity Purchase',
                 serviceDesc: 'Purchase of electricity token',
                 transactionRef: $transRef,
@@ -568,7 +633,7 @@ class ElectricityController extends Controller
                 serviceID: $serviceID,
                 meterNumber: $validatedData['meter_no'],
                 type: $validatedData['meter_type'],
-                amount: $amount,
+                amount: $originalAmount,
                 phone: $user->sPhone
             );
 
@@ -577,7 +642,7 @@ class ElectricityController extends Controller
                 $response,
                 $transaction,
                 $user,
-                $amount
+                $payableAmount
             );
 
             // Email Logic for successful transaction
@@ -586,7 +651,7 @@ class ElectricityController extends Controller
                 try {
                     \Illuminate\Support\Facades\Mail::to($user->sEmail)->send(new \App\Mail\SendElectricityToken(
                         $token,
-                        $amount,
+                        $originalAmount,
                         $validatedData['meter_no'],
                         $transRef
                     ));
@@ -597,7 +662,7 @@ class ElectricityController extends Controller
 
             DB::commit();
 
-            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
+            ReferralBonusService::credit($user, $payableAmount, ReferralBonusService::METER, $transRef);
 
             return $this->ok('Electricity purchase successful', $response);
 
@@ -680,13 +745,14 @@ class ElectricityController extends Controller
         $requestPayload = $validatedData;
         unset($requestPayload['pin']);
 
-        $amount = $validatedData['amount'];
+        $originalAmount = $validatedData['original_amount'] ?? $validatedData['amount'];
+        $payableAmount = $validatedData['payable_amount'] ?? $originalAmount;
 
         $transaction = VtuAfricaTransaction::create([
             'user_id' => $user->sId,
             'service_type' => VtuAfricaServiceType::ELECTRICITY,
             'transaction_ref' => $transRef,
-            'amount' => $amount,
+            'amount' => $payableAmount,
             'status' => TransactionStatus::PENDING,
             'request_payload' => $requestPayload,
         ]);
@@ -694,7 +760,7 @@ class ElectricityController extends Controller
         try {
             debitWallet(
                 user: $user,
-                amount: $amount,
+                amount: $payableAmount,
                 serviceName: 'Electricity Purchase',
                 serviceDesc: 'Purchase of electricity token',
                 transactionRef: $transRef,
@@ -710,7 +776,7 @@ class ElectricityController extends Controller
                 service: $service,
                 meterNo: $validatedData['meter_no'],
                 meterType: $validatedData['meter_type'],
-                amount: $amount,
+                amount: $originalAmount,
                 transactionRef: $transRef
             );
 
@@ -759,7 +825,7 @@ class ElectricityController extends Controller
             // Refund the user
             creditWallet(
                 user: $user,
-                amount: $amount,
+                amount: $payableAmount,
                 serviceName: 'Wallet Refund',
                 serviceDesc: 'Refund for failed electricity transaction: ' . $transRef,
                 transactionRef: null,

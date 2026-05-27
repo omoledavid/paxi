@@ -211,7 +211,16 @@ class ReferralBonusService
                 $totalTransactions = (float) DB::table('transactions')
                     ->where('sId', $user->sId)
                     ->where('status', 0) // 0 = success
-                    ->whereNotIn('servicename', ['Referral Bonus', 'Wallet Credit', 'Refund', 'Debit'])
+                    ->whereNotIn('servicename', [
+                        'Referral Bonus',
+                        'Referral Signup Bonus',
+                        'Referral Payout',
+                        'Wallet Transfer',
+                        'Wallet Credit',
+                        'Wallet Refund',
+                        'Refund',
+                        'Debit',
+                    ])
                     ->sum('amount');
 
                 if ($totalTransactions < $minAmount) {
@@ -296,9 +305,11 @@ class ReferralBonusService
      * Manually trigger a referral-wallet payout for a user.
      *
      * Rules:
+     *  - PND must NOT be active
      *  - Balance must be > 0
      *  - If threshold > 0, balance must be >= threshold
      *  - If threshold == 0, any positive balance can be paid out
+     *  - Referral withdrawal limit must not be exceeded (rolling window)
      *
      * Returns an array with keys: success, message, amount (on success), threshold.
      *
@@ -306,6 +317,15 @@ class ReferralBonusService
      */
     public static function payout(User $user): array
     {
+        // PND check — block outgoing sweep when PND is active
+        if ((int) $user->pnd_active === 1) {
+            return [
+                'success'   => false,
+                'message'   => 'Transactions are restricted on this account. Contact support.',
+                'threshold' => 0,
+            ];
+        }
+
         $role       = (int) $user->sType;
         $commission = ReferralCommission::forRole($role) ?? ReferralCommission::forRole(0);
         $threshold  = $commission ? (float) $commission->auto_payout_threshold : 0.0;
@@ -334,11 +354,30 @@ class ReferralBonusService
             ];
         }
 
+        // Referral withdrawal limit check (rolling window)
+        $allowedAmount = $refBalance;
+        [$maxAmount, $periodDays] = static::getReferralWithdrawalLimit();
+        if ($maxAmount > 0) {
+            $alreadyWithdrawn = static::getReferralWithdrawnInPeriod($user, $periodDays);
+            $remainingAllowance = $maxAmount - $alreadyWithdrawn;
+
+            if ($remainingAllowance <= 0) {
+                return [
+                    'success'   => false,
+                    'message'   => 'You have reached your maximum referral withdrawal limit for this period.',
+                    'threshold' => $threshold,
+                ];
+            }
+
+            // Cap the withdrawal at the remaining allowance
+            $allowedAmount = min($refBalance, $remainingAllowance);
+        }
+
         $swept       = false;
         $sweptAmount = 0.0;
 
         try {
-            DB::transaction(function () use ($user, &$swept, &$sweptAmount) {
+            DB::transaction(function () use ($user, &$swept, &$sweptAmount, $allowedAmount) {
                 // Lock the row so no concurrent sweep can interfere
                 $current = (float) DB::table('subscribers')
                     ->where('sId', $user->sId)
@@ -349,24 +388,27 @@ class ReferralBonusService
                     return; // Nothing to sweep (race condition)
                 }
 
+                // Only sweep up to the allowed amount
+                $sweepAmount = min($current, $allowedAmount);
+
                 DB::table('subscribers')
                     ->where('sId', $user->sId)
                     ->update([
-                        'sWallet'    => DB::raw("sWallet + {$current}"),
-                        'sRefWallet' => 0,
+                        'sWallet'    => DB::raw("sWallet + {$sweepAmount}"),
+                        'sRefWallet' => DB::raw("sRefWallet - {$sweepAmount}"),
                     ]);
 
                 $subscriber  = DB::table('subscribers')->where('sId', $user->sId)->first();
                 $newMainBal  = (float) $subscriber->sWallet;
-                $oldMainBal  = $newMainBal - $current;
+                $oldMainBal  = $newMainBal - $sweepAmount;
                 $payoutTxRef = 'PAYOUT-' . $user->sId . '-' . uniqid();
 
                 DB::table('transactions')->insert([
                     'sId'         => $user->sId,
                     'transref'    => $payoutTxRef,
                     'servicename' => 'Referral Payout',
-                    'servicedesc' => sprintf('Referral commission of N%s credited to main wallet', number_format($current, 2)),
-                    'amount'      => $current,
+                    'servicedesc' => sprintf('Referral commission of N%s credited to main wallet', number_format($sweepAmount, 2)),
+                    'amount'      => $sweepAmount,
                     'status'      => 0,
                     'oldbal'      => $oldMainBal,
                     'newbal'      => $newMainBal,
@@ -377,13 +419,13 @@ class ReferralBonusService
 
                 Log::info('Referral manual payout executed', [
                     'user_id'      => $user->sId,
-                    'amount_swept' => $current,
+                    'amount_swept' => $sweepAmount,
                     'new_main_bal' => $newMainBal,
                     'payout_ref'   => $payoutTxRef,
                 ]);
 
                 $swept       = true;
-                $sweptAmount = $current;
+                $sweptAmount = $sweepAmount;
             });
 
             if (! $swept) {
@@ -394,9 +436,15 @@ class ReferralBonusService
                 ];
             }
 
+            $message = sprintf('₦%s has been moved to your main wallet.', number_format($sweptAmount, 2));
+            if ($sweptAmount < $refBalance) {
+                $remaining = $refBalance - $sweptAmount;
+                $message .= sprintf(' ₦%s remains in your referral wallet (withdrawal limit reached).', number_format($remaining, 2));
+            }
+
             return [
                 'success'   => true,
-                'message'   => sprintf('₦%s has been moved to your main wallet.', number_format($sweptAmount, 2)),
+                'message'   => $message,
                 'amount'    => $sweptAmount,
                 'threshold' => $threshold,
             ];
@@ -426,6 +474,18 @@ class ReferralBonusService
     private static function autoPayoutIfThresholdMet(User $referrer): void
     {
         try {
+            // 0. PND check — skip auto-payout if PND is active on this account
+            $pndActive = (int) DB::table('subscribers')
+                ->where('sId', $referrer->sId)
+                ->value('pnd_active');
+
+            if ($pndActive === 1) {
+                Log::info('Auto-payout skipped: PND active on account', [
+                    'referrer_id' => $referrer->sId,
+                ]);
+                return;
+            }
+
             // 1. Get threshold for referrer's role (fall back to role 0)
             $referrerRole = (int) $referrer->sType;
             $commission = ReferralCommission::forRole($referrerRole)
@@ -449,20 +509,40 @@ class ReferralBonusService
                 return; // Threshold not yet reached
             }
 
-            // 3. Atomically sweep full referral balance to main wallet.
-            //    The WHERE guard (sRefWallet = :balance) acts as an optimistic lock —
-            //    if another process already swept, 0 rows are updated and we bail out.
-            DB::transaction(function () use ($referrer, $refBalance) {
+            // 3. Referral withdrawal limit check (rolling window)
+            $allowedAmount = $refBalance;
+            [$maxAmount, $periodDays] = static::getReferralWithdrawalLimit();
+            if ($maxAmount > 0) {
+                $alreadyWithdrawn = static::getReferralWithdrawnInPeriod($referrer, $periodDays);
+                $remainingAllowance = $maxAmount - $alreadyWithdrawn;
+
+                if ($remainingAllowance <= 0) {
+                    Log::info('Referral auto-payout skipped: withdrawal limit reached', [
+                        'referrer_id'       => $referrer->sId,
+                        'already_withdrawn' => $alreadyWithdrawn,
+                        'max_amount'        => $maxAmount,
+                        'period_days'       => $periodDays,
+                    ]);
+                    return;
+                }
+
+                // Cap the payout at the remaining allowance
+                $allowedAmount = min($refBalance, $remainingAllowance);
+            }
+
+            // 4. Atomically sweep allowed referral balance to main wallet.
+            //    The WHERE guard (sRefWallet >= :balance) ensures we don't oversweep.
+            DB::transaction(function () use ($referrer, $refBalance, $allowedAmount) {
                 $affected = DB::table('subscribers')
                     ->where('sId', $referrer->sId)
-                    ->where('sRefWallet', $refBalance)
+                    ->where('sRefWallet', '>=', $allowedAmount)
                     ->update([
-                        'sWallet'    => DB::raw("sWallet + {$refBalance}"),
-                        'sRefWallet' => DB::raw('sRefWallet - ' . $refBalance),
+                        'sWallet'    => DB::raw("sWallet + {$allowedAmount}"),
+                        'sRefWallet' => DB::raw("sRefWallet - {$allowedAmount}"),
                     ]);
 
                 if ($affected === 0) {
-                    return; // Swept by a concurrent request — skip logging
+                    return; // Insufficient balance or swept by concurrent request
                 }
 
                 // Fetch updated balances for transaction log
@@ -471,7 +551,7 @@ class ReferralBonusService
                     ->first();
 
                 $newMainBalance = (float) $subscriber->sWallet;
-                $oldMainBalance = $newMainBalance - $refBalance;
+                $oldMainBalance = $newMainBalance - $allowedAmount;
                 $payoutTxRef    = 'AUTOPAYOUT-' . $referrer->sId . '-' . uniqid();
 
                 DB::table('transactions')->insert([
@@ -480,9 +560,9 @@ class ReferralBonusService
                     'servicename' => 'Referral Payout',
                     'servicedesc' => sprintf(
                         'Referral commission of N%s credited to main wallet',
-                        number_format($refBalance, 2)
+                        number_format($allowedAmount, 2)
                     ),
-                    'amount'      => $refBalance,
+                    'amount'      => $allowedAmount,
                     'status'      => 0,
                     'oldbal'      => $oldMainBalance,
                     'newbal'      => $newMainBalance,
@@ -492,10 +572,11 @@ class ReferralBonusService
                 ]);
 
                 Log::info('Referral auto payout executed', [
-                    'referrer_id'   => $referrer->sId,
-                    'amount_swept'  => $refBalance,
-                    'new_main_bal'  => $newMainBalance,
-                    'payout_ref'    => $payoutTxRef,
+                    'referrer_id'       => $referrer->sId,
+                    'amount_swept'      => $allowedAmount,
+                    'ref_balance_before'=> $refBalance,
+                    'new_main_bal'      => $newMainBalance,
+                    'payout_ref'        => $payoutTxRef,
                 ]);
             });
 
@@ -506,5 +587,42 @@ class ReferralBonusService
                 'error'       => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Read the global referral withdrawal limit settings from sitesettings.
+     * Returns [maxAmount, periodDays]. Both default to 0 (disabled) if not set.
+     *
+     * @return array{0: float, 1: int}
+     */
+    private static function getReferralWithdrawalLimit(): array
+    {
+        $settings = DB::table('sitesettings')->first();
+
+        $maxAmount  = $settings ? (float) ($settings->ref_withdrawal_max_amount ?? 0) : 0.0;
+        $periodDays = $settings ? (int) ($settings->ref_withdrawal_period_days ?? 0)   : 0;
+
+        return [$maxAmount, $periodDays];
+    }
+
+    /**
+     * Sum all referral payout transactions for a user within the rolling window.
+     *
+     * @param  User  $user
+     * @param  int   $days  Number of days for the rolling window (0 = no limit)
+     * @return float
+     */
+    private static function getReferralWithdrawnInPeriod(User $user, int $days): float
+    {
+        if ($days <= 0) {
+            return 0.0;
+        }
+
+        return (float) DB::table('transactions')
+            ->where('sId', $user->sId)
+            ->whereIn('servicename', ['Referral Payout'])
+            ->where('status', 0)
+            ->where('created_at', '>=', now()->subDays($days))
+            ->sum('amount');
     }
 }
