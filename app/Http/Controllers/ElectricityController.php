@@ -444,6 +444,13 @@ class ElectricityController extends Controller
 
     private function purchaseElectricityNellobytes($validatedData, $meterType, $transRef, $user)
     {
+        // Check NelloBytes wallet balance before proceeding
+        $payableAmount = $validatedData['payable_amount'] ?? ($validatedData['original_amount'] ?? $validatedData['amount']);
+        $walletCheck = checkServiceWallet('nellobytes', $payableAmount);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
         // purchase data using nellobytes
         DB::beginTransaction();
         try {
@@ -529,6 +536,8 @@ class ElectricityController extends Controller
 
     private function purchaseElectricityPaystack($validatedData, $transRef, $user)
     {
+        // Check Paystack doesn't have wallet check, but we keep pattern consistent
+        // Paystack uses direct payment so wallet check is not applicable
         DB::beginTransaction();
         try {
             $originalAmount = $validatedData['original_amount'] ?? $validatedData['amount'];
@@ -601,6 +610,13 @@ class ElectricityController extends Controller
 
     private function purchaseElectricityVtpass($validatedData, $transRef, $user)
     {
+        // Check VTpass wallet balance before proceeding
+        $payableAmount = $validatedData['payable_amount'] ?? ($validatedData['original_amount'] ?? $validatedData['amount']);
+        $walletCheck = checkServiceWallet('vtpass', $payableAmount);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
         DB::beginTransaction();
         try {
             $originalAmount = $validatedData['original_amount'] ?? $validatedData['amount'];
@@ -692,6 +708,7 @@ class ElectricityController extends Controller
             'BENIN' => 'benin-electric',
             'ABA' => 'aba-electric',
             'YOLA' => 'yola-electric',
+            'ABEDC' => 'aba-electric',
         ];
     }
 
@@ -739,6 +756,13 @@ class ElectricityController extends Controller
 
     private function purchaseElectricityVtuAfrica($validatedData, $transRef, $user)
     {
+        // Check VTU Africa wallet balance before proceeding
+        $payableAmount = $validatedData['payable_amount'] ?? ($validatedData['original_amount'] ?? $validatedData['amount']);
+        $walletCheck = checkServiceWallet('vtuafrica', $payableAmount);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
         DB::beginTransaction();
 
         // Remove sensitive data from request payload
@@ -793,7 +817,7 @@ class ElectricityController extends Controller
                 try {
                     Mail::to($user->sEmail)->send(new SendElectricityToken(
                         $token,
-                        $amount,
+                        $originalAmount,
                         $validatedData['meter_no'],
                         $transRef
                     ));
@@ -804,7 +828,7 @@ class ElectricityController extends Controller
 
             DB::commit();
 
-            ReferralBonusService::credit($user, $amount, ReferralBonusService::METER, $transRef);
+            ReferralBonusService::credit($user, $originalAmount, ReferralBonusService::METER, $transRef);
 
             return $this->ok('Electricity purchase successful', [
                 'reference' => $transRef,
@@ -821,16 +845,6 @@ class ElectricityController extends Controller
                 'error_message' => $e->getMessage(),
                 'response_payload' => ['error' => $e->getMessage()],
             ]);
-
-            // Refund the user
-            creditWallet(
-                user: $user,
-                amount: $payableAmount,
-                serviceName: 'Wallet Refund',
-                serviceDesc: 'Refund for failed electricity transaction: ' . $transRef,
-                transactionRef: null,
-                wrapInTransaction: false
-            );
 
             \Log::error('Electricity purchase failed (VTU Africa)', [
                 'error' => $e->getMessage(),

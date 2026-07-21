@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'txn.burst.guard' => \App\Http\Middleware\DetectTransactionBurst::class,
             'signup.ip.guard' => \App\Http\Middleware\ThrottleSignupByIp::class,
             'pnd.check'       => \App\Http\Middleware\CheckPostNoDebit::class,
+            'admin.secret'    => \App\Http\Middleware\AdminSecretAuth::class,
         ]);
 
         // Exclude webhook routes from CSRF protection

@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\ReferralCommission;
 use App\Models\User;
+use App\Models\UserBankAccount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,6 +40,20 @@ class UserResource extends JsonResource
                 'epin_business_name' => $this->epin_business_name,
                 'epin_customer_care' => $this->epin_customer_care,
                 'pnd_active' => (bool) $this->pnd_active,
+                'can_add_bank_account' => (bool) $this->can_add_bank_account,
+                'can_transfer_to_bank' => (bool) $this->can_transfer_to_bank,
+                'bank_accounts' => UserBankAccount::forUser($this->sId)
+                    ->orderByDesc('is_default')
+                    ->orderByDesc('created_at')
+                    ->get()
+                    ->map(fn ($a) => [
+                        'id'             => $a->id,
+                        'bank_code'      => $a->bank_code,
+                        'bank_name'      => $a->bank_name,
+                        'account_number' => $a->account_number,
+                        'account_name'   => $a->account_name,
+                        'is_default'     => $a->is_default,
+                    ]),
                 'banks' => [
                     [
                         'name'         => $this->sBankName ?? 'Wema Bank',

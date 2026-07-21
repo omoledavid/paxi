@@ -101,7 +101,8 @@ class UserController extends Controller
             'old_pin' => 'required',
             'new_pin' => 'required|confirmed|digits:4|int',
         ]);
-        if ($validatedData['old_pin'] == $user->sPin) {
+        $oldpass = passwordHash($validatedData['old_pin']);
+        if ($oldpass == $user->sPass) {
             $user->sPin = $validatedData['new_pin'];
             $user->save();
 
@@ -157,12 +158,11 @@ class UserController extends Controller
 
         // 2. Improved validation with upper limit and more robust rules
         $validatedData = $request->validate([
-            'amount' => 'required|numeric|min:1|max:50000',
+            'amount' => 'required|numeric|min:1',
             'email' => 'required|email|exists:subscribers,sEmail',
             'pin' => 'required|digits:4|int',
         ], [
             'email.exists' => 'This email does not exist in our records',
-            'amount.max' => 'Transfer amount exceeds maximum allowed limit',
         ]);
 
         // 3. Additional validation checks

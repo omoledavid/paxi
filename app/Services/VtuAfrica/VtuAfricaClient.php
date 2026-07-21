@@ -5,6 +5,7 @@ namespace App\Services\VtuAfrica;
 use App\Exceptions\VtuAfricaApiException;
 use App\Models\ApiConfig;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Cache;
@@ -107,7 +108,7 @@ class VtuAfricaClient
 
                 // If we get here, it's an unknown error
                 throw new VtuAfricaApiException(
-                    $dataArray['description'] ?? 'Unknown error from VTU Africa API',
+                    $dataArray['description'] ?? 'Unknown error please try again later',
                     (string) ($dataArray['code'] ?? ''),
                     $dataArray,
                     500
@@ -200,6 +201,18 @@ class VtuAfricaClient
                     'error' => $e->getMessage(),
                     'attempt' => $attempt,
                 ]);
+
+                // Only retry on true connection failures (DNS, refused) where the request
+                // never reached the server. Read timeouts (cURL 28) must not be retried
+                // because the server may have already processed the transaction.
+                if (!($e instanceof ConnectException)) {
+                    throw new VtuAfricaApiException(
+                        'VTU Africa API request failed: ' . $e->getMessage(),
+                        'CONNECTION_ERROR',
+                        null,
+                        500
+                    );
+                }
 
                 if ($attempt >= $this->retryAttempts) {
                     throw new VtuAfricaApiException(

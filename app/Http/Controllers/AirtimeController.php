@@ -109,6 +109,13 @@ class AirtimeController extends Controller
                 default => 100
             };
 
+            // Calculate payable amount and check NelloBytes wallet balance
+            $payableAmount = ($validated['amount'] / 100) * $discountRate;
+            $walletCheck = checkServiceWallet('nellobytes', $payableAmount);
+            if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+                return $this->error('Service unavailable at the moment. Please try again later.');
+            }
+
             $transaction = NelloBytesTransaction::create([
                 'user_id' => $user->sId,
                 'service_type' => NelloBytesServiceType::AIRTIME,
@@ -117,9 +124,6 @@ class AirtimeController extends Controller
                 'status' => TransactionStatus::PENDING,
                 'request_payload' => $validated,
             ]);
-
-            // Calculate payable amount: (Amount / 100) * DiscountRate
-            $payableAmount = ($validated['amount'] / 100) * $discountRate;
 
             debitWallet(
                 user: $user,
@@ -157,6 +161,12 @@ class AirtimeController extends Controller
         }
 
         if ($this->isVtpassEnabled()) {
+            // Check VTpass wallet balance before proceeding
+            $walletCheck = checkServiceWallet('vtpass', $validated['amount']);
+            if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+                return $this->error('Service unavailable at the moment. Please try again later.');
+            }
+
             // Map network ID to VTpass serviceID
             $providerMap = [
                 '1' => 'mtn',

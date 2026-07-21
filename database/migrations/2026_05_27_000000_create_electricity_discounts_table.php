@@ -15,7 +15,6 @@ return new class extends Migration
             $table->decimal('discount_value', 10, 2)->default(0);
             $table->decimal('min_amount', 10, 2)->nullable();
             $table->decimal('max_amount', 10, 2)->nullable();
-            $table->decimal('buy_discount', 10, 2)->default(0);
             $table->decimal('user_discount', 10, 2)->default(0);
             $table->decimal('agent_discount', 10, 2)->default(0);
             $table->decimal('vendor_discount', 10, 2)->default(0);

@@ -7,4 +7,5 @@ use Illuminate\Database\Eloquent\Model;
 class CablePlan extends Model
 {
     protected $table = 'cableplans';
+    protected $primaryKey = 'cpId';
 }

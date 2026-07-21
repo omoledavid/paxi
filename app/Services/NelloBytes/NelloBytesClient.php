@@ -6,6 +6,7 @@ use App\Exceptions\NelloBytesApiException;
 use App\Exceptions\NelloBytesInsufficientBalanceException;
 use App\Exceptions\NelloBytesInvalidCustomerException;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Cache;
@@ -96,11 +97,20 @@ class NelloBytesClient
                 // If HTTP 200 and response contains data (not an error), treat as successful
                 // This handles list endpoints (companies, packages, discounts) that return data directly
                 if ($response->getStatusCode() === 200 && ! empty($dataArray)) {
+                    // Check for success indicators (ORDER_RECEIVED, ORDER_COMPLETED are success statuses from NelloBytes)
+                    $status = $dataArray['status'] ?? null;
+                    $statusCode = $dataArray['statuscode'] ?? null;
+                    $isSuccessStatus = $status === 'success'
+                        || $status === 'ORDER_RECEIVED'
+                        || $status === 'ORDER_COMPLETED'
+                        || $status === '00'
+                        || $statusCode === '100';
+
                     // Check if it looks like an error response
-                    $hasErrorIndicators = isset($dataArray['status']) && in_array(strtolower($dataArray['status']), ['fail', 'failed', 'error'])
-                        || isset($dataArray['msg']) && ! empty($dataArray['msg'])
+                    $hasErrorIndicators = isset($dataArray['msg']) && ! empty($dataArray['msg'])
                         || isset($dataArray['message']) && ! empty($dataArray['message'])
-                        || isset($dataArray['error']) && ! empty($dataArray['error']);
+                        || isset($dataArray['error']) && ! empty($dataArray['error'])
+                        || (isset($dataArray['status']) && ! $isSuccessStatus);
 
                     // If it doesn't look like an error and has data, treat as successful
                     if (! $hasErrorIndicators) {
@@ -114,7 +124,7 @@ class NelloBytesClient
                 // If we get here, it's an unknown error
                 $dataArray = $dataArray ?? [];
                 throw new NelloBytesApiException(
-                    (($dataArray ?? [])['msg'] ?? ($dataArray ?? [])['message'] ?? 'Unknown error from NelloBytes API'),
+                    (($dataArray ?? [])['msg'] ?? ($dataArray ?? [])['message'] ?? ($dataArray ?? [])['status'] ?? 'Unknown error please try again later'),
                     ($dataArray ?? [])['code'] ?? '',
                     $dataArray,
                     500
@@ -205,6 +215,18 @@ class NelloBytesClient
                     'attempt' => $attempt,
                 ]);
 
+                // Only retry on true connection failures (DNS, refused) where the request
+                // never reached the server. Read timeouts (cURL 28) must not be retried
+                // because the server may have already processed the transaction.
+                if (!($e instanceof ConnectException)) {
+                    throw new NelloBytesApiException(
+                        'NelloBytes API request failed: '.$e->getMessage(),
+                        'CONNECTION_ERROR',
+                        null,
+                        500
+                    );
+                }
+
                 if ($attempt >= $this->retryAttempts) {
                     throw new NelloBytesApiException(
                         'Failed to connect to NelloBytes API: '.$e->getMessage(),
@@ -239,21 +261,22 @@ class NelloBytesClient
             return;
         }
 
-        $errorCode = $data['code'] ?? $data['errorCode'] ?? '';
-        $message = $data['msg'] ?? $data['message'] ?? 'Unknown error';
+        $errorCode = $data['code'] ?? $data['errorCode'] ?? $data['status'] ?? '';
+        $message = $data['msg'] ?? $data['message'] ?? $data['status'] ?? 'Unknown error';
 
         // Map known error codes to exceptions
         $errorCodeMap = [
             'INSUFFICIENT_WALLET_BALANCE' => NelloBytesInsufficientBalanceException::class,
             'INVALID_CUSTOMERID' => NelloBytesInvalidCustomerException::class,
             'INVALID_CUSTOMER_ID' => NelloBytesInvalidCustomerException::class,
+            'AUTHENTICATION_FAILED' => NelloBytesApiException::class,
         ];
 
         // Check if message contains error codes (case-insensitive)
         $upperMessage = strtoupper($message);
         foreach ($errorCodeMap as $code => $exceptionClass) {
             if (stripos($upperMessage, $code) !== false || stripos($upperMessage, str_replace('_', ' ', $code)) !== false) {
-                throw new $exceptionClass($message, $data);
+                throw new $exceptionClass($message, $errorCode, $data);
             }
         }
 

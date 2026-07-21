@@ -23,7 +23,7 @@ class PrintEpinRequest extends FormRequest
     {
         return [
             'mobile_network' => 'required|string|in:01,02,03,04',
-            'value' => 'required|integer|in:100,200,500',
+            'value' => 'required|integer|in:100,200,500,1000',
             'quantity' => 'required|integer|min:1|max:100',
             'callback_url' => 'nullable|url',
             'pin' => 'required|digits:4|integer',
@@ -42,7 +42,7 @@ class PrintEpinRequest extends FormRequest
             'mobile_network.in' => 'The mobile network must be one of 01, 02, 03, or 04.',
             'value.required' => 'The value is required.',
             'value.integer' => 'The value must be a valid number.',
-            'value.in' => 'The value must be 100, 200, or 500.',
+            'value.in' => 'The value must be 100, 200, 500, or 1000.',
             'quantity.required' => 'The quantity is required.',
             'quantity.integer' => 'The quantity must be a valid number.',
             'quantity.min' => 'The quantity must be at least 1.',

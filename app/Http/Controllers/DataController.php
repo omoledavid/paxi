@@ -120,6 +120,7 @@ class DataController extends Controller
                 default => 100,
             };
             $amount = round(($dataCode->userprice / 100) * $discountRate, 2);
+            $providerAmount = (float) $dataCode->userprice;
         } else {
             return $this->error('data plan not found');
         }
@@ -128,7 +129,7 @@ class DataController extends Controller
 
         // Priority: Palmpay -> VTU Africa -> NelloBytes -> VTpass -> Legacy
         if ($this->isPalmpayEnabled()) {
-            return $this->purchasePalmpayData($validatedData, $user, $dataCode, $transRef, $amount);
+            return $this->purchasePalmpayData($validatedData, $user, $dataCode, $transRef, $amount, $providerAmount);
         }
 
         if ($this->isVtuAfricaEnabled()) {
@@ -136,6 +137,12 @@ class DataController extends Controller
         }
 
         if ($this->isNellobytesEnabled()) {
+            // Check NelloBytes wallet balance before proceeding
+            $walletCheck = checkServiceWallet('nellobytes', $providerAmount);
+            if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+                return $this->error('Service unavailable at the moment. Please try again later.');
+            }
+
             DB::beginTransaction();
             $transaction = NelloBytesTransaction::create([
                 'user_id' => $user->sId,
@@ -188,6 +195,12 @@ class DataController extends Controller
         }
 
         if ($this->isVtpassEnabled()) {
+            // Check VTpass wallet balance before proceeding
+            $walletCheck = checkServiceWallet('vtpass', $providerAmount);
+            if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+                return $this->error('Service unavailable at the moment. Please try again later.');
+            }
+
             $dataCode = DataPlan::find($validatedData['data_plan_id']);
             if (!$dataCode) {
                 return $this->error('Data plan not found');
@@ -282,7 +295,7 @@ class DataController extends Controller
                     serviceID: $serviceID,
                     phone: $validatedData['phone_number'],
                     variationCode: $dataCode->planid ?? 'unknown',
-                    amount: $amount,
+                    amount: $providerAmount,
                     extra_payload: $extraPayload
                 );
 
@@ -395,7 +408,7 @@ class DataController extends Controller
     /**
      * Purchase data via PalmPay.
      */
-    private function purchasePalmpayData(array $validated, $user, DataPlan $dataCode, string $transRef, float $amount): JsonResponse
+    private function purchasePalmpayData(array $validated, $user, DataPlan $dataCode, string $transRef, float $amount, float $providerAmount): JsonResponse
     {
 
         // Map network ID and data type to PalmPay service code
@@ -438,7 +451,7 @@ class DataController extends Controller
                 phoneNumber: $validated['phone_number'],
                 dataPlan: $dataCode->planid,
                 transactionRef: $transRef,
-                amount: $amount
+                amount: $providerAmount
             );
 
             // Use handleProviderResponse for automatic reversal on failure

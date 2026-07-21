@@ -58,6 +58,9 @@ return [
         'query_recharge_account' => 'rechargeaccount/query',
         'virtual_account_create'     => 'virtual/account/label/create',
         'bank_transfer_create_order' => 'payment/merchant/createorder',
+        'payout_query_bank_list'     => 'general/merchant/queryBankList',
+        'payout_query_bank_account'  => 'payment/merchant/payout/queryBankAccount',
+        'payout'                     => 'merchant/payment/payout',
     ],
 
     /*

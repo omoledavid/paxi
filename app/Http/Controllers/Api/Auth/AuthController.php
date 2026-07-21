@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Mail\AccountLocked;
+use App\Models\DeviceTrustToken;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\UserLogin;
@@ -13,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -51,43 +53,51 @@ class AuthController extends Controller
             }
         }
 
-        $apiKey = apiKeyGen();
-        $verCode = verificationCode(6);
-        $userType = 0;
+        try {
+            return DB::transaction(function () use ($validatedData, $referralUsername) {
+                $apiKey = apiKeyGen();
+                $verCode = verificationCode(6);
+                $userType = 1;
 
-        $user = new User;
-        $user->sFname = $validatedData['fname'];
-        $user->sLname = $validatedData['lname'];
-        $user->username = $validatedData['username'];
-        $user->sEmail = $validatedData['sEmail'];
-        $user->sPhone = NigerianPhone::normalize($validatedData['sPhone']);
-        $user->sPass = passwordHash($validatedData['password']);
-        $user->sState = $validatedData['state'];
-        $user->sType = $userType;
-        $user->sApiKey = $apiKey;
-        $user->sReferal = $referralUsername;
-        $user->sPin = $validatedData['pin'];
-        $user->sVerCode = $verCode;
-        $user->sVerCodeExpiry = now()->addMinutes(5);
-        $user->sRegStatus = 3;
-        $user->save();
-        // refresh user
-        $user->refresh();
+                $user = new User;
+                $user->sFname = $validatedData['fname'];
+                $user->sLname = $validatedData['lname'];
+                $user->username = $validatedData['username'];
+                $user->sEmail = $validatedData['sEmail'];
+                $user->sPhone = NigerianPhone::normalize($validatedData['sPhone']);
+                $user->sPass = passwordHash($validatedData['password']);
+                $user->sState = $validatedData['state'];
+                $user->sType = $userType;
+                $user->sApiKey = $apiKey;
+                $user->sReferal = $referralUsername;
+                $user->sPin = $validatedData['pin'];
+                $user->sVerCode = $verCode;
+                $user->sVerCodeExpiry = now()->addMinutes(5);
+                $user->sRegStatus = 3;
+                $user->save();
+                // refresh user
+                $user->refresh();
 
-        sendVerificationCode($verCode, $user->sEmail);
-        $token = $user->createToken('auth_token', ['*'])->plainTextToken;
+                sendVerificationCode($verCode, $user->sEmail);
+                $token = $user->createToken('auth_token', ['*'])->plainTextToken;
 
-        return $this->ok('User registered successfully. Please verify your email address.', [
-            'user' => $user,
-            'token' => $token,
-        ]);
+                return $this->ok('User registered successfully. Please verify your email address.', [
+                    'user' => $user,
+                    'token' => $token,
+                ]);
+            });
+        } catch (\Exception $e) {
+            return $this->error('Registration failed: '.$e->getMessage(), 500);
+        }
     }
 
     public function login(Request $request)
     {
         $request->validate([
-            'sPhone' => 'required',
-            'password' => 'required|string|min:6',
+            'sPhone'      => 'required',
+            'password'    => 'required|string|min:6',
+            'remember_me' => 'boolean',
+            'trust_token' => 'string|nullable',
         ], [
             'sPhone.required' => 'The phone number or email is required.',
             'password.required' => 'Password is required.',
@@ -143,15 +153,53 @@ class AuthController extends Controller
 
         $user->unlockAccount();
 
-        // Device verification check
-        $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
+        // Trust token check — bypasses device verification entirely
+        if ($request->filled('trust_token')) {
+            $tokenHash = hash('sha256', $request->trust_token);
+            $trustToken = DeviceTrustToken::where('token_hash', $tokenHash)
+                ->where('user_id', $user->sId)
+                ->valid()
+                ->first();
 
-        $knownDevice = UserDevice::where('user_id', $user->sId)
-            ->where('device_hash', $deviceHash)
-            ->first();
+            if ($trustToken) {
+                $trustToken->update(['last_used_at' => now()]);
+
+                $token = $user->createToken('auth_token', ['*'])->plainTextToken;
+
+                return $this->ok('Authenticated', [
+                    'token' => $token,
+                    'user' => [
+                        'name'  => $user->sFname.' '.$user->sLname,
+                        'email' => $user->sEmail,
+                    ],
+                ]);
+            }
+        }
+
+        // Device verification check — two-tier matching (fallback when no trust token)
+        $knownDevice = null;
+        $clientDeviceId = $request->input('device_id');
+
+        if ($clientDeviceId) {
+            $knownDevice = UserDevice::where('user_id', $user->sId)
+                ->where('client_device_id', $clientDeviceId)
+                ->first();
+        }
+
+        if (! $knownDevice) {
+            $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
+
+            $knownDevice = UserDevice::where('user_id', $user->sId)
+                ->where('device_hash', $deviceHash)
+                ->first();
+        }
 
         if ($knownDevice) {
             $knownDevice->update(['last_seen_at' => now()]);
+
+            if ($clientDeviceId && ! $knownDevice->client_device_id) {
+                $knownDevice->update(['client_device_id' => $clientDeviceId]);
+            }
         } else {
             $otp             = verificationCode(6);
             $verificationToken = Str::random(40);
@@ -190,6 +238,7 @@ class AuthController extends Controller
         $request->validate([
             'verification_token' => ['required', 'string'],
             'otp_code'           => ['required', 'digits:6'],
+            'remember_me'        => ['boolean'],
         ]);
 
         $user = User::where('device_verification_token', $request->verification_token)->first();
@@ -208,13 +257,15 @@ class AuthController extends Controller
 
         // Register the device so future logins skip OTP
         $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
+        $clientDeviceId = $request->input('device_id');
 
         UserDevice::updateOrCreate(
             ['user_id' => $user->sId, 'device_hash' => $deviceHash],
             [
-                'user_agent'   => $request->userAgent(),
-                'ip_address'   => $request->ip(),
-                'last_seen_at' => now(),
+                'client_device_id' => $clientDeviceId,
+                'user_agent'       => $request->userAgent(),
+                'ip_address'       => $request->ip(),
+                'last_seen_at'     => now(),
             ]
         );
 
@@ -225,11 +276,23 @@ class AuthController extends Controller
             'device_verification_token' => null,
         ]);
 
+        // Issue 30-day trust token if "Remember Me" was checked
+        $rawToken = null;
+        if ($request->boolean('remember_me')) {
+            $rawToken = Str::random(64);
+            DeviceTrustToken::create([
+                'user_id'    => $user->sId,
+                'token_hash' => hash('sha256', $rawToken),
+                'expires_at' => now()->addDays(30),
+            ]);
+        }
+
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
 
         return $this->ok('Authenticated', [
-            'token' => $token,
-            'user'  => [
+            'token'       => $token,
+            'trust_token' => $rawToken,
+            'user'        => [
                 'name'  => $user->sFname.' '.$user->sLname,
                 'email' => $user->sEmail,
             ],
@@ -274,5 +337,29 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return $this->ok('Logged out');
+    }
+
+    public function listTrustTokens(Request $request): JsonResponse
+    {
+        $tokens = DeviceTrustToken::where('user_id', $request->user()->sId)
+            ->valid()
+            ->get(['id', 'expires_at', 'last_used_at', 'created_at']);
+
+        return $this->ok('Trust tokens retrieved.', $tokens->toArray());
+    }
+
+    public function revokeTrustToken(Request $request, int $id): JsonResponse
+    {
+        $token = DeviceTrustToken::where('user_id', $request->user()->sId)
+            ->where('id', $id)
+            ->first();
+
+        if (! $token) {
+            return $this->error('Trust token not found.', 404);
+        }
+
+        $token->delete();
+
+        return $this->ok('Trust token revoked.');
     }
 }

@@ -112,17 +112,17 @@ class BettingController extends Controller
 
             $companies = [
                 ['PRODUCT_CODE' => 'msport', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => 'naijabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => 'nairabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'NaijaBet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'Nairabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'bet9ja-agent', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => 'bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'Bet9ja', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'betland', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'betlion', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'supabet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => 'bangbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => 'betking', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => '1xbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => 'betway', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'BangBet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'BetKing', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => '1XBET', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'Betway', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'merrybet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'mlotto', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'western-lotto', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
@@ -134,7 +134,7 @@ class BettingController extends Controller
                 ['PRODUCT_CODE' => 'livescorebet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'naira-million', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'cloudbet', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
-                ['PRODUCT_CODE' => 'paripesa', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
+                ['PRODUCT_CODE' => 'PariPesa', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
                 ['PRODUCT_CODE' => 'mylottohub', 'MINAMOUNT' => 100, 'MAXAMOUNT' => 50000],
             ];
 
@@ -235,6 +235,12 @@ class BettingController extends Controller
 
         if ($this->isPaystackEnabled()) {
             return $this->fundPaystack($validated, $user);
+        }
+
+        // Check NelloBytes wallet balance before proceeding
+        $walletCheck = checkServiceWallet('nellobytes', $validated['amount']);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
         }
 
         // Generate transaction reference
@@ -460,6 +466,7 @@ class BettingController extends Controller
 
     private function fundPalmpay(array $validated, $user): JsonResponse
     {
+        // Palmpay balance check is skipped (no wallet endpoint available)
         $transactionRef = generateTransactionRef();
 
         // Remove sensitive data from request payload before storing
@@ -542,6 +549,12 @@ class BettingController extends Controller
 
     private function fundVtuAfrica(array $validated, $user): JsonResponse
     {
+        // Check VTU Africa wallet balance before proceeding
+        $walletCheck = checkServiceWallet('vtuafrica', $validated['amount']);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
         $transactionRef = generateTransactionRef();
 
         // Remove sensitive data from request payload before storing

@@ -427,6 +427,13 @@ class CableTvController extends Controller
 
     private function purchaseNellobytesCableTv($validatedData, $user)
     {
+        // Check NelloBytes wallet balance before proceeding
+        $amount = $validatedData['price'];
+        $walletCheck = checkServiceWallet('nellobytes', $amount);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
         $transRef = generateTransactionRef();
         DB::beginTransaction();
         try {
@@ -498,6 +505,7 @@ class CableTvController extends Controller
 
     private function purchasePaystackCableTv($validatedData, $user)
     {
+        // Paystack uses direct payment so wallet check is not applicable
         $transRef = generateTransactionRef();
         DB::beginTransaction();
         try {
@@ -559,8 +567,14 @@ class CableTvController extends Controller
 
     private function purchaseVtpassCableTv($validatedData, $user)
     {
-        $transRef = generateTransactionRef();
+        // Check VTpass wallet balance before proceeding
         $amount = $validatedData['price'];
+        $walletCheck = checkServiceWallet('vtpass', $amount);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
+        $transRef = generateTransactionRef();
 
         DB::beginTransaction();
         try {
@@ -674,8 +688,14 @@ class CableTvController extends Controller
 
     private function purchaseVtuAfricaCableTv($validatedData, $user)
     {
-        $transRef = generateTransactionRef();
+        // Check VTU Africa wallet balance before proceeding
         $amount = $validatedData['price'];
+        $walletCheck = checkServiceWallet('vtuafrica', $amount);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
+        $transRef = generateTransactionRef();
 
         DB::beginTransaction();
 

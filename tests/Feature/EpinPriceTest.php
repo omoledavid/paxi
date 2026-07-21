@@ -32,12 +32,12 @@ beforeEach(function () {
 
 it('can retrieve all epin prices', function () {
     $prices = EpinPrice::all();
-    expect($prices)->toHaveCount(12); // 4 networks x 3 amounts
+    expect($prices)->toHaveCount(16); // 4 networks x 4 amounts (100, 200, 500, 1000)
 });
 
 it('can retrieve prices for a specific network', function () {
     $prices = EpinPrice::forNetwork('01');
-    expect($prices)->toHaveCount(3);
+    expect($prices)->toHaveCount(4); // 4 amounts: 100, 200, 500, 1000
     expect($prices->first()->network_name)->toBe('MTN');
 });
 

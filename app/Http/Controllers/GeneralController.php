@@ -9,6 +9,7 @@ use App\Models\GeneralSetting;
 use App\Models\Transaction;
 use App\Traits\ApiResponses;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class GeneralController extends Controller
 {
@@ -138,6 +139,9 @@ class GeneralController extends Controller
 
     public function settings()
     {
+        // Clear cached GeneralSetting so admin panel changes take effect immediately
+        Cache::forget('GeneralSetting');
+
         $config = ApiConfig::all();
 
         return $this->ok('success', [
@@ -168,6 +172,9 @@ class GeneralController extends Controller
             'wallet_below_cap_fee'        => (float) (getConfigValue($config, 'walletBelowCapFee') ?? 0),
             'wallet_above_cap_fee_type'   => getConfigValue($config, 'walletAboveCapFeeType') ?? 'fixed',
             'wallet_above_cap_fee'        => (float) (getConfigValue($config, 'walletAboveCapFee') ?? 0),
+            // Bank transfer payout settings
+            'enable_bank_transfer'        => (bool) gs('enable_bank_transfer'),
+            'bank_transfer_fee'           => (float) (gs('bank_transfer_fee') ?? 0),
         ]);
     }
 

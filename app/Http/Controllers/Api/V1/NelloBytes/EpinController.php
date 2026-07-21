@@ -11,6 +11,7 @@ use App\Models\ApiConfig;
 use App\Models\Epin;
 use App\Models\EpinPrice;
 use App\Models\NelloBytesTransaction;
+use App\Models\User;
 use App\Services\NelloBytes\EpinService;
 use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\ReferralBonusService;
@@ -29,6 +30,13 @@ class EpinController extends Controller
     protected EpinService $epinService;
 
     protected NelloBytesTransactionService $nelloBytesTransactionService;
+
+    private const NETWORKS = [
+        '01' => 'MTN',
+        '02' => 'GLO',
+        '03' => 'T2-Mobile',
+        '04' => 'Airtel',
+    ];
 
     public function __construct(EpinService $epinService, NelloBytesTransactionService $nelloBytesTransactionService)
     {
@@ -124,6 +132,19 @@ class EpinController extends Controller
                 $role
             );
 
+            // Check NelloBytes wallet balance before proceeding
+            $walletCheck = checkServiceWallet('nellobytes', $amount);
+            if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+                return $this->error('Service unavailable at the moment. Please try again later.');
+            }
+
+            // Check EPIN source mode: 'database' uses local inventory, 'nellobytes' calls API
+            $sourceMode = $this->getEpinSourceMode();
+
+            if ($sourceMode === 'database') {
+                return $this->assignFromInventory($user, $validated, $amount, $transactionRef, $role, $requestPayload);
+            }
+
             // Create transaction record with discounted amount
             $transaction = NelloBytesTransaction::create([
                 'user_id' => $user->sId,
@@ -134,12 +155,7 @@ class EpinController extends Controller
                 'request_payload' => $requestPayload,
             ]);
 
-            $networks = [
-                '01' => 'MTN',
-                '02' => 'GLO',
-                '04' => 'Airtel',
-                '03' => 'T2-Mobile',
-            ];
+            $networks = self::NETWORKS;
 
             // Debit wallet with discounted amount
             $debit = debitWallet(
@@ -309,12 +325,7 @@ class EpinController extends Controller
             ->latest()
             ->paginate($limit)
             ->through(function ($epin) {
-                $networks = [
-                    '01' => 'MTN',
-                    '02' => 'GLO',
-                    '04' => 'Airtel',
-                    '03' => 'T2-Mobile',
-                ];
+                $networks = self::NETWORKS;
 
                 if (isset($networks[$epin->network])) {
                     $epin->network = $networks[$epin->network];
@@ -381,5 +392,143 @@ class EpinController extends Controller
         }
 
         return $enabled;
+    }
+
+    /**
+     * Get the current EPIN source mode from database.
+     */
+    private function getEpinSourceMode(): string
+    {
+        static $mode = null;
+
+        if ($mode === null) {
+            $config = ApiConfig::all();
+            $mode = (string) getConfigValue($config, 'epinSourceMode');
+            if (empty($mode)) {
+                $mode = 'nellobytes';
+            }
+        }
+
+        return $mode;
+    }
+
+    /**
+     * Assign EPINs from local inventory instead of calling NelloBytes API.
+     */
+    private function assignFromInventory(
+        User $user,
+        array $validated,
+        float $amount,
+        string $transactionRef,
+        int $role,
+        array $requestPayload
+    ): JsonResponse {
+        try {
+            $availablePins = Epin::whereNull('user_id')
+                ->where('network', $validated['mobile_network'])
+                ->where('amount', $validated['value'])
+                ->where('status', 'unused')
+                ->where('source', 'admin_bulk')
+                ->lockForUpdate()
+                ->take($validated['quantity'])
+                ->get();
+
+            if ($availablePins->count() < $validated['quantity']) {
+                return $this->error(
+                    'EPINs are currently out of stock. Please try again later or contact support.',
+                    400
+                );
+            }
+
+            // Create transaction record
+            $transaction = NelloBytesTransaction::create([
+                'user_id' => $user->sId,
+                'service_type' => NelloBytesServiceType::EPIN,
+                'transaction_ref' => $transactionRef,
+                'amount' => $amount,
+                'status' => TransactionStatus::PENDING,
+                'request_payload' => $requestPayload,
+            ]);
+
+            // Debit wallet with discounted amount
+            $debit = debitWallet(
+                $user,
+                $amount,
+                'EPIN Purchase',
+                sprintf(
+                    'EPIN %s x %s from local inventory',
+                    number_format($validated['value'], 2),
+                    $validated['quantity']
+                ),
+                0,
+                0,
+                $transactionRef,
+                false
+            );
+
+            // Assign PINs to user
+            $savedEpins = [];
+            $networkName = self::NETWORKS[$validated['mobile_network']] ?? $validated['mobile_network'];
+            foreach ($availablePins as $pin) {
+                $pin->update([
+                    'user_id' => $user->sId,
+                    'status' => 'unused',
+                    'disbursed_at' => now(),
+                ]);
+                $savedEpins[] = [
+                    'pin' => $pin->pin_code,
+                    'sno' => $pin->serial_number ?? '',
+                    'amount' => (string) $pin->amount,
+                    'mobilenetwork' => $networkName,
+                    'transactionid' => 'INVENTORY-' . $transactionRef,
+                    'transactiondate' => now()->toDateTimeString(),
+                    'batchno' => $pin->batch_reference ?? '',
+                ];
+            }
+
+            $transaction->update([
+                'status' => TransactionStatus::SUCCESS,
+                'nellobytes_ref' => 'INVENTORY-' . $transactionRef,
+                'response_payload' => ['source' => 'local_inventory', 'pin_count' => count($savedEpins)],
+            ]);
+
+            DB::commit();
+
+            try {
+                Mail::to($user->sEmail)->send(new SendEpin($savedEpins, $transactionRef));
+            } catch (\Exception $e) {
+                Log::error('Failed to send EPIN email (inventory)', ['error' => $e->getMessage()]);
+            }
+
+            ReferralBonusService::credit($user, $amount, ReferralBonusService::AIRTIME, $transactionRef);
+
+            return $this->ok('EPIN card printed successfully', [
+                'transaction_ref' => $transactionRef,
+                'nellobytes_ref' => 'INVENTORY-' . $transactionRef,
+                'amount' => $amount,
+                'balance' => $debit['new_balance'],
+                'data' => [
+                    'TXN_EPIN' => $savedEpins,
+                    'source' => 'inventory',
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            if (isset($transaction)) {
+                $transaction->update([
+                    'status' => TransactionStatus::FAILED,
+                    'error_message' => $e->getMessage(),
+                ]);
+            }
+
+            Log::error('Failed to assign EPIN from inventory', [
+                'user_id' => $user->sId,
+                'transaction_ref' => $transactionRef,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->error('Failed to process EPIN purchase: ' . $e->getMessage(), 500);
+        }
     }
 }

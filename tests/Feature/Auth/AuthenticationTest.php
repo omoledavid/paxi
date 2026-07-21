@@ -1,10 +1,22 @@
 <?php
 
 use App\Models\User;
+use App\Models\UserDevice;
+use Illuminate\Http\Request;
 
 test('users can authenticate using the login screen', function () {
     $user = User::factory()->create([
         'sRegStatus' => 0,
+    ]);
+
+    // Seed a known device record matching the test client fingerprint
+    $request = Request::create('/api/login', 'POST');
+    $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
+
+    UserDevice::create([
+        'user_id'      => $user->sId,
+        'device_hash'  => $deviceHash,
+        'last_seen_at' => now(),
     ]);
 
     $response = $this->postJson('/api/login', [

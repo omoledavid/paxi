@@ -149,3 +149,35 @@ if (! function_exists('mutateWallet')) {
         return $wrapInTransaction ? DB::transaction($operation) : $operation();
     }
 }
+
+if (! function_exists('checkServiceWallet')) {
+    /**
+     * Check if a service provider has sufficient balance for a transaction.
+     *
+     * @param string $service Service name (nellobytes, vtpass, vtuafrica, palmpay, paystack, smileid, gatewayapi, one, two, three)
+     * @param float $amount The transaction amount
+     * @return array ['status' => 'success|fail', 'balance' => float, 'has_sufficient' => bool, 'message' => string]
+     */
+    function checkServiceWallet(string $service, float $amount): array
+    {
+        $checker = app(\App\Services\ServiceWalletChecker::class);
+
+        return $checker->checkBalance($service, $amount);
+    }
+}
+
+if (! function_exists('hasServiceWalletBalance')) {
+    /**
+     * Quick check if service has sufficient balance.
+     *
+     * @param string $service Service name
+     * @param float $amount The transaction amount
+     * @return bool True if service has sufficient balance
+     */
+    function hasServiceWalletBalance(string $service, float $amount): bool
+    {
+        $checker = app(\App\Services\ServiceWalletChecker::class);
+
+        return $checker->hasSufficientBalance($service, $amount);
+    }
+}

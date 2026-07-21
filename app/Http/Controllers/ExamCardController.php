@@ -124,6 +124,12 @@ class ExamCardController extends Controller
         $amount = $validated['price'];
         $payableAmount = $amount; // Apply discount logic if needed
 
+        // Check VTU Africa wallet balance before proceeding
+        $walletCheck = checkServiceWallet('vtuafrica', $payableAmount);
+        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            return $this->error('Service unavailable at the moment. Please try again later.');
+        }
+
         $requestPayload = $validated;
         unset($requestPayload['pin']);
 

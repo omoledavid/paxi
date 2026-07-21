@@ -59,6 +59,9 @@ class User extends Authenticatable
             'is_banned' => 'boolean',
             'banned_at' => 'datetime',
             'pnd_active' => 'boolean',
+            'can_transfer_to_bank' => 'boolean',
+            'can_add_bank_account' => 'boolean',
+            'device_otp_expires_at' => 'datetime',
         ];
     }
 
