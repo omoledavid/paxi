@@ -99,16 +99,13 @@ class CableTvService extends VtuAfricaClient
             '1' => 'gotv',
             '2' => 'dstv',
             '3' => 'startimes',
-            '4' => 'showmax',
             // DB Name -> VTU Africa Service ID
             'GOTV' => 'gotv',
             'DSTV' => 'dstv',
             'STARTIMES' => 'startimes',
-            'SHOWMAX' => 'showmax',
             'gotv' => 'gotv',
             'dstv' => 'dstv',
             'startimes' => 'startimes',
-            'showmax' => 'showmax',
         ];
 
         return $serviceMap[$providerId] ?? strtolower($providerId);

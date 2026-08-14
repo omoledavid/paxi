@@ -7,14 +7,13 @@ use App\Mail\AccountLocked;
 use App\Models\DeviceTrustToken;
 use App\Models\User;
 use App\Models\UserDevice;
-use App\Models\UserLogin;
 use App\Rules\NigerianPhone;
 use App\Traits\ApiResponses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -40,7 +39,7 @@ class AuthController extends Controller
 
             return $this->error($response, 400);
         }
-        //check if phone number exist
+        // check if phone number exist
         $phoneExist = User::where('sPhone', NigerianPhone::normalize($validatedData['sPhone']))->first();
         if ($phoneExist) {
             return $this->error('Phone number already exist.', 400);
@@ -94,8 +93,8 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'sPhone'      => 'required',
-            'password'    => 'required|string|min:6',
+            'sPhone' => 'required',
+            'password' => 'required|string|min:6',
             'remember_me' => 'boolean',
             'trust_token' => 'string|nullable',
         ], [
@@ -146,7 +145,7 @@ class AuthController extends Controller
         if ($user->sRegStatus == 3) {
             return $this->error(['Your account is not verified.'], 403);
         }
-        //update last login
+        // update last login
         $user->update([
             'sLastActivity' => now(),
         ]);
@@ -169,14 +168,18 @@ class AuthController extends Controller
                 return $this->ok('Authenticated', [
                     'token' => $token,
                     'user' => [
-                        'name'  => $user->sFname.' '.$user->sLname,
+                        'name' => $user->sFname.' '.$user->sLname,
                         'email' => $user->sEmail,
                     ],
                 ]);
             }
         }
 
-        // Device verification check — two-tier matching (fallback when no trust token)
+        // Device verification check
+        // When a client device_id is provided, it is the ONLY trust signal used.
+        // The IP+User-Agent hash fallback is reserved for legacy clients that send
+        // no device identity — otherwise a constant mobile User-Agent combined with
+        // a shared NAT IP would let a second phone impersonate a trusted device.
         $knownDevice = null;
         $clientDeviceId = $request->input('device_id');
 
@@ -184,9 +187,7 @@ class AuthController extends Controller
             $knownDevice = UserDevice::where('user_id', $user->sId)
                 ->where('client_device_id', $clientDeviceId)
                 ->first();
-        }
-
-        if (! $knownDevice) {
+        } else {
             $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
 
             $knownDevice = UserDevice::where('user_id', $user->sId)
@@ -201,12 +202,12 @@ class AuthController extends Controller
                 $knownDevice->update(['client_device_id' => $clientDeviceId]);
             }
         } else {
-            $otp             = verificationCode(6);
+            $otp = verificationCode(6);
             $verificationToken = Str::random(40);
 
             $user->update([
-                'device_otp'                => $otp,
-                'device_otp_expires_at'     => now()->addMinutes(10),
+                'device_otp' => $otp,
+                'device_otp_expires_at' => now()->addMinutes(10),
                 'device_verification_token' => $verificationToken,
             ]);
 
@@ -214,8 +215,8 @@ class AuthController extends Controller
 
             return $this->ok('Device verification required.', [
                 'requires_device_verification' => true,
-                'verification_token'           => $verificationToken,
-                'email'                        => $user->sEmail,
+                'verification_token' => $verificationToken,
+                'email' => $user->sEmail,
             ]);
         }
 
@@ -237,8 +238,8 @@ class AuthController extends Controller
     {
         $request->validate([
             'verification_token' => ['required', 'string'],
-            'otp_code'           => ['required', 'digits:6'],
-            'remember_me'        => ['boolean'],
+            'otp_code' => ['required', 'digits:6'],
+            'remember_me' => ['boolean'],
         ]);
 
         $user = User::where('device_verification_token', $request->verification_token)->first();
@@ -263,16 +264,16 @@ class AuthController extends Controller
             ['user_id' => $user->sId, 'device_hash' => $deviceHash],
             [
                 'client_device_id' => $clientDeviceId,
-                'user_agent'       => $request->userAgent(),
-                'ip_address'       => $request->ip(),
-                'last_seen_at'     => now(),
+                'user_agent' => $request->userAgent(),
+                'ip_address' => $request->ip(),
+                'last_seen_at' => now(),
             ]
         );
 
         // Clear pending OTP data
         $user->update([
-            'device_otp'                => null,
-            'device_otp_expires_at'     => null,
+            'device_otp' => null,
+            'device_otp_expires_at' => null,
             'device_verification_token' => null,
         ]);
 
@@ -281,7 +282,7 @@ class AuthController extends Controller
         if ($request->boolean('remember_me')) {
             $rawToken = Str::random(64);
             DeviceTrustToken::create([
-                'user_id'    => $user->sId,
+                'user_id' => $user->sId,
                 'token_hash' => hash('sha256', $rawToken),
                 'expires_at' => now()->addDays(30),
             ]);
@@ -290,10 +291,10 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token', ['*'])->plainTextToken;
 
         return $this->ok('Authenticated', [
-            'token'       => $token,
+            'token' => $token,
             'trust_token' => $rawToken,
-            'user'        => [
-                'name'  => $user->sFname.' '.$user->sLname,
+            'user' => [
+                'name' => $user->sFname.' '.$user->sLname,
                 'email' => $user->sEmail,
             ],
         ]);
@@ -316,12 +317,12 @@ class AuthController extends Controller
             return $this->error('Please wait before requesting a new OTP.', 429);
         }
 
-        $otp               = verificationCode(6);
+        $otp = verificationCode(6);
         $verificationToken = Str::random(40);
 
         $user->update([
-            'device_otp'                => $otp,
-            'device_otp_expires_at'     => now()->addMinutes(10),
+            'device_otp' => $otp,
+            'device_otp_expires_at' => now()->addMinutes(10),
             'device_verification_token' => $verificationToken,
         ]);
 

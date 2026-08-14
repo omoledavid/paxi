@@ -22,11 +22,11 @@ class EnsureRecentActivity
         $threshold = now()->subMinutes($timeoutMinutes);
         $lastUsed = $accessToken->last_used_at ?? $accessToken->created_at ?? now();
 
-        if ($lastUsed->lessThanOrEqualTo($threshold)) {
-            $accessToken->delete();
-
-            return $this->expiredResponse();
-        }
+        // if ($lastUsed->lessThanOrEqualTo($threshold)) {
+        //     $accessToken->delete();
+        //
+        //     return $this->expiredResponse();
+        // }
 
         $accessToken->forceFill(['last_used_at' => now()])->save();
 

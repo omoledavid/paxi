@@ -101,7 +101,7 @@ class EpinController extends Controller
         $user = auth()->user();
         $validated = $request->validated();
 
-        if (!$this->isNellobytesEnabled()) {
+        if (! $this->isNellobytesEnabled()) {
             return $this->error('Epin is currently unavailable', 400);
         }
 
@@ -134,7 +134,7 @@ class EpinController extends Controller
 
             // Check NelloBytes wallet balance before proceeding
             $walletCheck = checkServiceWallet('nellobytes', $amount);
-            if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+            if ($walletCheck['status'] !== 'success' || ! $walletCheck['has_sufficient']) {
                 return $this->error('Service unavailable at the moment. Please try again later.');
             }
 
@@ -144,7 +144,6 @@ class EpinController extends Controller
             if ($sourceMode === 'database') {
                 return $this->assignFromInventory($user, $validated, $amount, $transactionRef, $role, $requestPayload);
             }
-
             // Create transaction record with discounted amount
             $transaction = NelloBytesTransaction::create([
                 'user_id' => $user->sId,
@@ -203,6 +202,7 @@ class EpinController extends Controller
                         'serial_number' => $pinData['sno'] ?? $pinData['SerialNo'] ?? null,
                         'expiry_date' => isset($pinData['expiry']) ? Carbon::parse($pinData['expiry']) : null,
                         'status' => 'unused',
+                        'disbursed_at' => now(),
                         'description' => "Purchased {$validated['mobile_network']} {$validated['value']}",
                     ];
                     Epin::create($epinData);
@@ -234,12 +234,14 @@ class EpinController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             // Update transaction with error
-            $transaction->update([
-                'status' => TransactionStatus::FAILED,
-                'error_message' => $e->getMessage(),
-                'error_code' => method_exists($e, 'getErrorCode') ? $e->getErrorCode() : null,
-                'response_payload' => ['error' => $e->getMessage()],
-            ]);
+            if (isset($transaction)) {
+                $transaction->update([
+                    'status' => TransactionStatus::FAILED,
+                    'error_message' => $e->getMessage(),
+                    'error_code' => method_exists($e, 'getErrorCode') ? $e->getErrorCode() : null,
+                    'response_payload' => ['error' => $e->getMessage()],
+                ]);
+            }
 
             Log::error('Failed to print EPIN card', [
                 'user_id' => $user->sId,
@@ -282,13 +284,13 @@ class EpinController extends Controller
             );
 
             // Optionally update stored transaction if we find it by request_id
-            if (!empty($validated['request_id'])) {
+            if (! empty($validated['request_id'])) {
                 NelloBytesTransaction::where('transaction_ref', $validated['request_id'])
                     ->where('service_type', NelloBytesServiceType::EPIN)
                     ->latest()
                     ->first()?->update([
-                            'response_payload' => $result,
-                        ]);
+                        'response_payload' => $result,
+                    ]);
             }
 
             return $this->ok('EPIN transaction retrieved successfully', $result);
@@ -322,7 +324,7 @@ class EpinController extends Controller
         $limit = $request->input('limit', 20);
 
         $epins = Epin::where('user_id', $user->sId)
-            ->latest()
+            ->orderByRaw('COALESCE(disbursed_at, created_at) DESC')
             ->paginate($limit)
             ->through(function ($epin) {
                 $networks = self::NETWORKS;
@@ -450,15 +452,18 @@ class EpinController extends Controller
                 'request_payload' => $requestPayload,
             ]);
 
+            $networks = self::NETWORKS;
+
             // Debit wallet with discounted amount
             $debit = debitWallet(
                 $user,
                 $amount,
                 'EPIN Purchase',
                 sprintf(
-                    'EPIN %s x %s from local inventory',
+                    'EPIN %s x %s for %s',
                     number_format($validated['value'], 2),
-                    $validated['quantity']
+                    $validated['quantity'],
+                    $networks[$validated['mobile_network']] ?? $validated['mobile_network']
                 ),
                 0,
                 0,
@@ -468,19 +473,32 @@ class EpinController extends Controller
 
             // Assign PINs to user
             $savedEpins = [];
+            $responseEpins = [];
             $networkName = self::NETWORKS[$validated['mobile_network']] ?? $validated['mobile_network'];
+            $purchaseDescription = "Purchased {$validated['mobile_network']} {$validated['value']}";
             foreach ($availablePins as $pin) {
                 $pin->update([
                     'user_id' => $user->sId,
+                    'transaction_id' => $transaction->id,
                     'status' => 'unused',
                     'disbursed_at' => now(),
+                    'description' => $purchaseDescription,
                 ]);
                 $savedEpins[] = [
+                    'network' => $validated['mobile_network'],
+                    'amount' => (string) $pin->amount,
+                    'pin_code' => $pin->pin_code,
+                    'serial_number' => $pin->serial_number ?? '',
+                    'expiry_date' => $pin->expiry_date ? $pin->expiry_date->toDateTimeString() : null,
+                    'status' => 'unused',
+                    'description' => $purchaseDescription,
+                ];
+                $responseEpins[] = [
                     'pin' => $pin->pin_code,
                     'sno' => $pin->serial_number ?? '',
                     'amount' => (string) $pin->amount,
                     'mobilenetwork' => $networkName,
-                    'transactionid' => 'INVENTORY-' . $transactionRef,
+                    'transactionid' => 'INVENTORY-'.$transactionRef,
                     'transactiondate' => now()->toDateTimeString(),
                     'batchno' => $pin->batch_reference ?? '',
                 ];
@@ -488,7 +506,7 @@ class EpinController extends Controller
 
             $transaction->update([
                 'status' => TransactionStatus::SUCCESS,
-                'nellobytes_ref' => 'INVENTORY-' . $transactionRef,
+                'nellobytes_ref' => 'INVENTORY-'.$transactionRef,
                 'response_payload' => ['source' => 'local_inventory', 'pin_count' => count($savedEpins)],
             ]);
 
@@ -504,11 +522,11 @@ class EpinController extends Controller
 
             return $this->ok('EPIN card printed successfully', [
                 'transaction_ref' => $transactionRef,
-                'nellobytes_ref' => 'INVENTORY-' . $transactionRef,
+                'nellobytes_ref' => 'INVENTORY-'.$transactionRef,
                 'amount' => $amount,
                 'balance' => $debit['new_balance'],
                 'data' => [
-                    'TXN_EPIN' => $savedEpins,
+                    'TXN_EPIN' => $responseEpins,
                     'source' => 'inventory',
                 ],
             ]);
@@ -528,7 +546,7 @@ class EpinController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return $this->error('Failed to process EPIN purchase: ' . $e->getMessage(), 500);
+            return $this->error('Failed to process EPIN purchase: '.$e->getMessage(), 500);
         }
     }
 }

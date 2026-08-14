@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\NelloBytesServiceType;
+use App\Enums\PaystackServiceType;
 use App\Enums\TransactionStatus;
 use App\Enums\VtuAfricaServiceType;
 use App\Http\Resources\CableTvResource;
@@ -12,16 +13,16 @@ use App\Models\CablePlan;
 use App\Models\CableTv;
 use App\Models\NelloBytesTransaction;
 use App\Models\PaystackTransaction;
-use App\Models\VtuAfricaTransaction;
 use App\Models\VtpassTransaction;
+use App\Models\VtuAfricaTransaction;
 use App\Services\NelloBytes\CableTvService;
 use App\Services\NelloBytes\NelloBytesTransactionService;
 use App\Services\Paystack\CableTvService as PaystackCableTvService;
 use App\Services\Paystack\PaystackTransactionService;
+use App\Services\ReferralBonusService;
 use App\Services\Vtpass\TvSubscriptionService as VtpassTvService;
 use App\Services\Vtpass\VtpassTransactionService;
 use App\Services\VtuAfrica\CableTvService as VtuAfricaCableTvService;
-use App\Services\ReferralBonusService;
 use App\Traits\ApiResponses;
 use DB;
 use Illuminate\Http\Request;
@@ -32,9 +33,13 @@ class CableTvController extends Controller
     use ApiResponses;
 
     protected CableTvService $cableTvService;
+
     protected PaystackCableTvService $paystackCableTvService;
+
     protected NelloBytesTransactionService $nelloBytesTransactionService;
+
     protected PaystackTransactionService $paystackTransactionService;
+
     protected VtpassTransactionService $vtpassTransactionService;
 
     public function __construct(
@@ -121,7 +126,7 @@ class CableTvController extends Controller
                     $info = $items[0] ?? [];
                     $products = $info['PRODUCT'] ?? [];
                     // Map provider names to IDs
-                    $providerMap = ['GOTV' => 1, 'DSTV' => 2, 'STARTIMES' => 3, 'SHOWMAX' => 4];
+                    $providerMap = ['GOTV' => 1, 'DSTV' => 2, 'STARTIMES' => 3];
                     $providerId = $providerMap[strtoupper($providerName)] ?? null;
 
                     return (object) [
@@ -148,7 +153,7 @@ class CableTvController extends Controller
             if (isset($response['data'])) {
                 $cableTv = collect($response['data'])->map(function ($provider) {
                     // Map provider names to IDs
-                    $providerMap = ['GOTV' => 1, 'DSTV' => 2, 'STARTIMES' => 3, 'SHOWMAX' => 4];
+                    $providerMap = ['GOTV' => 1, 'DSTV' => 2, 'STARTIMES' => 3];
                     $providerId = $providerMap[strtoupper($provider['name'])] ?? null;
 
                     return (object) [
@@ -178,7 +183,7 @@ class CableTvController extends Controller
                     // Check by provider name (e.g. DSTV) or ID (e.g. 2)
                     $serviceID = $map[$provider->provider] ?? $map[$provider->cId] ?? null;
 
-                    if (!$serviceID) {
+                    if (! $serviceID) {
                         return $provider;
                     }
 
@@ -202,9 +207,10 @@ class CableTvController extends Controller
                             'provider' => $provider->provider,
                             'providerStatus' => $provider->providerStatus, // Ensure status is passed
                             'plans' => $plans,
-                            'logo' => $provider->logo ?? null
+                            'logo' => $provider->logo ?? null,
                         ];
                     }
+
                     return $provider;
                 } catch (\Exception $e) {
                     return $provider;
@@ -224,7 +230,7 @@ class CableTvController extends Controller
         $validatedData = $request->validate([
             'provider_id' => 'required',
             'plan_id' => 'required',
-            'price' => 'required|integer|min:1',
+            'price' => 'required|numeric|min:1',
             'type' => 'required',
             'customer_no' => 'nullable',
             'iuc_no' => 'required',
@@ -264,7 +270,7 @@ class CableTvController extends Controller
         if ($user->sPin != $validatedData['pin']) {
             return $this->error('incorrect pin');
         }
-        $host = env('FRONTEND_URL') . '/api838190/cabletv/';
+        $host = env('FRONTEND_URL').'/api838190/cabletv/';
         // ref code
         $transRef = generateTransactionRef();
         // Prepare API request payload
@@ -300,16 +306,16 @@ class CableTvController extends Controller
     {
         $siteUrl = env('FRONTEND_URL');
 
-        $apiUrl = $siteUrl . '/api838190/cabletv/verify/';
+        $apiUrl = $siteUrl.'/api838190/cabletv/verify/';
 
         // Send request using Laravel's Http client
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'Token' => "Token $apiKey",
         ])->post($apiUrl, [
-                    'provider' => $provider,
-                    'iucnumber' => $iucNumber,
-                ]);
+            'provider' => $provider,
+            'iucnumber' => $iucNumber,
+        ]);
 
         // Decode response
         $result = $response->json();
@@ -334,12 +340,11 @@ class CableTvController extends Controller
                 // VTU Africa requires variation (plan_id) for verification
                 // Use provider-appropriate default if not provided
                 $variation = $request->plan_id;
-                if (!$variation) {
+                if (! $variation) {
                     $defaultVariations = [
                         'gotv' => 'gotv_max',
                         'dstv' => 'dstv_padi',
                         'startimes' => 'startimes_nova',
-                        'showmax' => 'full_3',
                     ];
                     $variation = $defaultVariations[$service] ?? 'gotv_max';
                 }
@@ -382,7 +387,7 @@ class CableTvController extends Controller
         } elseif ($this->isPaystackEnabled()) {
             $response = $this->paystackCableTvService->verifyIUC($request->provider_id, $request->iuc_no);
             // handle Paystack verify
-            if (!($response['status'] ?? false)) {
+            if (! ($response['status'] ?? false)) {
                 return $this->error('Invalid IUC number');
             }
 
@@ -397,6 +402,7 @@ class CableTvController extends Controller
             ];
 
             return $this->ok('success', $formattedResponse);
+
             return $this->ok('success', $formattedResponse);
         } elseif ($this->isVtpassEnabled()) {
             try {
@@ -411,10 +417,11 @@ class CableTvController extends Controller
                 $response = $this->vtpassTvService->verifySmartcard($serviceID, $request->iuc_no);
                 // Map VTpass response to local format
                 $name = $response['content']['Customer_Name'] ?? 'Unknown';
+
                 return $this->ok('success', [
                     'status' => 'success',
                     'Customer_Name' => $name,
-                    'msg' => $name
+                    'msg' => $name,
                 ]);
             } catch (\Exception $e) {
                 return $this->error('Invalid IUC number or Service Unavailable');
@@ -430,7 +437,7 @@ class CableTvController extends Controller
         // Check NelloBytes wallet balance before proceeding
         $amount = $validatedData['price'];
         $walletCheck = checkServiceWallet('nellobytes', $amount);
-        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+        if ($walletCheck['status'] !== 'success' || ! $walletCheck['has_sufficient']) {
             return $this->error('Service unavailable at the moment. Please try again later.');
         }
 
@@ -516,7 +523,7 @@ class CableTvController extends Controller
 
             $transaction = PaystackTransaction::create([
                 'user_id' => $user->sId,
-                'service_type' => \App\Enums\PaystackServiceType::CABLETV,
+                'service_type' => PaystackServiceType::CABLETV,
                 'transaction_ref' => $transRef,
                 'amount' => $amount,
                 'status' => TransactionStatus::PENDING,
@@ -570,7 +577,7 @@ class CableTvController extends Controller
         // Check VTpass wallet balance before proceeding
         $amount = $validatedData['price'];
         $walletCheck = checkServiceWallet('vtpass', $amount);
-        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+        if ($walletCheck['status'] !== 'success' || ! $walletCheck['has_sufficient']) {
             return $this->error('Service unavailable at the moment. Please try again later.');
         }
 
@@ -624,6 +631,7 @@ class CableTvController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return $this->error($e->getMessage());
         }
     }
@@ -663,12 +671,10 @@ class CableTvController extends Controller
             '1' => 'gotv',
             '2' => 'dstv',
             '3' => 'startimes',
-            '4' => 'showmax',
             // DB Name -> VTpass Service ID
             'GOTV' => 'gotv',
             'DSTV' => 'dstv',
             'STARTIMES' => 'startimes',
-            'SHOWMAX' => 'showmax',
         ];
     }
 
@@ -691,7 +697,7 @@ class CableTvController extends Controller
         // Check VTU Africa wallet balance before proceeding
         $amount = $validatedData['price'];
         $walletCheck = checkServiceWallet('vtuafrica', $amount);
-        if ($walletCheck['status'] !== 'success' || !$walletCheck['has_sufficient']) {
+        if ($walletCheck['status'] !== 'success' || ! $walletCheck['has_sufficient']) {
             return $this->error('Service unavailable at the moment. Please try again later.');
         }
 
@@ -762,7 +768,7 @@ class CableTvController extends Controller
                 user: $user,
                 amount: $amount,
                 serviceName: 'Wallet Refund',
-                serviceDesc: 'Refund for failed cable TV transaction: ' . $transRef,
+                serviceDesc: 'Refund for failed cable TV transaction: '.$transRef,
                 transactionRef: null,
                 wrapInTransaction: false
             );
