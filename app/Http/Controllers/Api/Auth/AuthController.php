@@ -202,6 +202,39 @@ class AuthController extends Controller
                 $knownDevice->update(['client_device_id' => $clientDeviceId]);
             }
         } else {
+            if ($user->device_otp_bypass_until && now()->lt($user->device_otp_bypass_until)) {
+                $deviceHash = hash('sha256', $request->ip().'|'.$request->userAgent());
+
+                UserDevice::updateOrCreate(
+                    ['user_id' => $user->sId, 'device_hash' => $deviceHash],
+                    [
+                        'client_device_id' => $clientDeviceId,
+                        'user_agent' => $request->userAgent(),
+                        'ip_address' => $request->ip(),
+                        'last_seen_at' => now(),
+                    ]
+                );
+
+                $user->update([
+                    'device_otp' => null,
+                    'device_otp_expires_at' => null,
+                    'device_verification_token' => null,
+                ]);
+
+                $token = $user->createToken('auth_token', ['*'])->plainTextToken;
+
+                return $this->ok(
+                    'Authenticated',
+                    [
+                        'token' => $token,
+                        'user' => [
+                            'name' => $user->sFname.' '.$user->sLname,
+                            'email' => $user->sEmail,
+                        ],
+                    ]
+                );
+            }
+
             $otp = verificationCode(6);
             $verificationToken = Str::random(40);
 

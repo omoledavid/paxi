@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -10,7 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
@@ -62,6 +63,7 @@ class User extends Authenticatable
             'can_transfer_to_bank' => 'boolean',
             'can_add_bank_account' => 'boolean',
             'device_otp_expires_at' => 'datetime',
+            'device_otp_bypass_until' => 'datetime',
         ];
     }
 
@@ -74,7 +76,7 @@ class User extends Authenticatable
 
     public function dailyTransactionTotal(): float
     {
-        return (float) \App\Models\Transaction::where('sId', $this->sId)
+        return (float) Transaction::where('sId', $this->sId)
             ->where('created_at', '>=', now()->subDay())
             ->whereNotIn('servicename', ['Wallet Topup', 'Wallet Funding', 'Wallet Credit', 'Referral Payout'])
             ->sum('amount');
