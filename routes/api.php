@@ -48,6 +48,7 @@ Route::post('verify-sms-code', [AuthorizationController::class, 'mobileVerificat
 
 // Allow authenticated users to change phone before verification
 Route::post('change-phone', [UserController::class, 'changePhoneNumber'])->middleware(['auth:sanctum', 'throttle:5,60']);
+Route::post('changepin', UserController::class . '@changePin')->middleware(['auth:sanctum', 'throttle:5,60']);
 
 Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::post('logout', AuthController::class . '@logout');
@@ -70,7 +71,6 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     Route::get('transactions', [TransactionController::class, 'index']);
     // Change password
     Route::post('changepass', UserController::class . '@changePassword');
-    Route::post('changepin', UserController::class . '@changePin');
 
     // Virtual Account
     Route::post('create-virtual-account', [VirtualAccountController::class, 'create']);
