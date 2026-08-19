@@ -1,31 +1,28 @@
 <?php
 
 use App\Http\Controllers\AirtimeController;
+use App\Http\Controllers\Api\Admin\EpinController as AdminEpinController;
+use App\Http\Controllers\Api\AdminCronController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthorizationController;
 use App\Http\Controllers\Api\Auth\ForgotPasswordController;
-use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\Api\AdminCronController;
-use App\Http\Controllers\Api\Admin\EpinController as AdminEpinController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\BankTransferController;
-use App\Http\Controllers\Api\WithdrawController;
+use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\V1\Vtpass\InternationalAirtimeController as VtpassIntlAirtimeController;
+use App\Http\Controllers\Api\V1\Vtpass\SmileController as VtpassSmileController;
+use App\Http\Controllers\Api\V1\Vtpass\SpectranetController as VtpassSpectranetController;
 use App\Http\Controllers\Api\VirtualAccountController;
+use App\Http\Controllers\Api\WithdrawController;
 use App\Http\Controllers\CableTvController;
 use App\Http\Controllers\DataController;
 use App\Http\Controllers\ElectricityController;
 use App\Http\Controllers\ExamCardController;
-use App\Http\Controllers\GeneralController;
-use App\Http\Controllers\PaystackCheckoutController;
-use App\Http\Controllers\KycController;
-use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\FeedbackController;
-use App\Http\Controllers\Api\V1\Vtpass\AirtimeController as VtpassAirtimeController;
-use App\Http\Controllers\Api\V1\Vtpass\DataController as VtpassDataController;
-use App\Http\Controllers\Api\V1\Vtpass\TvController as VtpassTvController;
-use App\Http\Controllers\Api\V1\Vtpass\SmileController as VtpassSmileController;
-use App\Http\Controllers\Api\V1\Vtpass\SpectranetController as VtpassSpectranetController;
-use App\Http\Controllers\Api\V1\Vtpass\InternationalAirtimeController as VtpassIntlAirtimeController;
+use App\Http\Controllers\GeneralController;
+use App\Http\Controllers\KycController;
+use App\Http\Controllers\PaystackCheckoutController;
+use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::controller(AuthController::class)->group(function () {
@@ -48,10 +45,10 @@ Route::post('verify-sms-code', [AuthorizationController::class, 'mobileVerificat
 
 // Allow authenticated users to change phone before verification
 Route::post('change-phone', [UserController::class, 'changePhoneNumber'])->middleware(['auth:sanctum', 'throttle:5,60']);
-Route::post('changepin', UserController::class . '@changePin')->middleware(['auth:sanctum', 'throttle:5,60']);
+Route::post('changepin', UserController::class.'@changePin')->middleware(['auth:sanctum', 'throttle:5,60']);
 
 Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
-    Route::post('logout', AuthController::class . '@logout');
+    Route::post('logout', AuthController::class.'@logout');
 
     // Trust token management (list + revoke)
     Route::get('user/trust-tokens', [AuthController::class, 'listTrustTokens']);
@@ -70,7 +67,7 @@ Route::middleware(['auth:sanctum', 'check.status'])->group(function () {
     // Transactions
     Route::get('transactions', [TransactionController::class, 'index']);
     // Change password
-    Route::post('changepass', UserController::class . '@changePassword');
+    Route::post('changepass', UserController::class.'@changePassword');
 
     // Virtual Account
     Route::post('create-virtual-account', [VirtualAccountController::class, 'create']);
@@ -183,6 +180,8 @@ Route::post('admin/cron/referral-signup-bonus', [AdminCronController::class, 'ru
 // Admin EPIN management (protected by shared secret)
 Route::prefix('admin/epin')->middleware('admin.secret')->group(function () {
     Route::post('buy-bulk', [AdminEpinController::class, 'buyBulk']);
+    Route::post('manual-add', [AdminEpinController::class, 'manualAdd']);
+    Route::post('check-duplicates', [AdminEpinController::class, 'checkDuplicates']);
     Route::get('stats', [AdminEpinController::class, 'stats']);
     Route::get('inventory', [AdminEpinController::class, 'inventory']);
     Route::get('batches', [AdminEpinController::class, 'batches']);

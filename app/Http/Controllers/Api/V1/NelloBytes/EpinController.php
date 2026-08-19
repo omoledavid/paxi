@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\NelloBytes;
 
 use App\Enums\NelloBytesServiceType;
 use App\Enums\TransactionStatus;
+use App\Http\Controllers\Api\Admin\EpinController as AdminEpinController;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\NelloBytes\PrintEpinRequest;
 use App\Mail\SendEpin;
@@ -192,13 +193,13 @@ class EpinController extends Controller
             // Save EPINs to database
             $savedEpins = [];
             if (isset($result['TXN_EPIN']) && is_array($result['TXN_EPIN'])) {
-                foreach ($result['TXN_EPIN'] as $pinData) {
+                foreach ($result['TXN_EPIN'] as $pinIndex => $pinData) {
                     $epinData = [
                         'user_id' => $user->sId,
                         'transaction_id' => $transaction->id,
                         'network' => $validated['mobile_network'],
                         'amount' => $validated['value'],
-                        'pin_code' => $pinData['pin'] ?? $pinData['CardPin'] ?? 'UNKNOWN',
+                        'pin_code' => $pinData['pin'] ?? $pinData['CardPin'] ?? "UNKNOWN-{$transactionRef}-{$pinIndex}",
                         'serial_number' => $pinData['sno'] ?? $pinData['SerialNo'] ?? null,
                         'expiry_date' => isset($pinData['expiry']) ? Carbon::parse($pinData['expiry']) : null,
                         'status' => 'unused',
@@ -333,7 +334,7 @@ class EpinController extends Controller
                     $epin->network = $networks[$epin->network];
                 }
 
-                return $epin;
+                return $epin->makeHidden(Epin::INTERNAL_FIELDS);
             });
 
         return $this->ok('EPIN history retrieved', $epins);
@@ -430,7 +431,7 @@ class EpinController extends Controller
                 ->where('network', $validated['mobile_network'])
                 ->where('amount', $validated['value'])
                 ->where('status', 'unused')
-                ->where('source', 'admin_bulk')
+                ->whereIn('source', AdminEpinController::ADMIN_SOURCES)
                 ->lockForUpdate()
                 ->take($validated['quantity'])
                 ->get();

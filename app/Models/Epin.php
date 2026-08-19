@@ -9,10 +9,24 @@ class Epin extends Model
 {
     protected $guarded = ['id'];
 
+    /**
+     * Inventory bookkeeping that must never reach a buyer. purchase_cost in
+     * particular discloses margin. Hidden explicitly rather than via $hidden so
+     * the admin inventory endpoints keep seeing them.
+     */
+    public const INTERNAL_FIELDS = [
+        'purchase_cost',
+        'purchased_by_admin_id',
+        'batch_reference',
+        'source',
+        'entry_method',
+    ];
+
     protected $casts = [
         'amount' => 'decimal:2',
         'purchase_cost' => 'decimal:2',
         'expiry_date' => 'datetime',
+        'printed_at' => 'datetime',
         'disbursed_at' => 'datetime',
     ];
 
